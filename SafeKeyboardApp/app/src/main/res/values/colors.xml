@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <!-- Theme colors -->
+    <color name="primary">#FF2196F3</color>
+    <color name="primary_dark">#FF1976D2</color>
+    <color name="accent">#FFFF9800</color>
+
+    <!-- Keyboard colors -->
+    <color name="key_background">#FFEEEEEE</color>
+    <color name="key_background_pressed">#FFE0E0E0</color>
+    <color name="key_text">#FF212121</color>
+    <color name="keyboard_background">#FFD6D6D6</color>
+
+    <!-- Warning colors -->
+    <color name="warning_overlay_background">#E6000000</color>
+    <color name="warning_card_background">#FFFFFFFF</color>
+    <color name="warning_text">#FF212121</color>
+    <color name="button_edit">#FF4CAF50</color>
+    <color name="button_send_anyway">#FFF44336</color>
+</resources>

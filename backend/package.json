@@ -1,0 +1,25 @@
+{
+  "name": "safekeyboard-backend",
+  "version": "1.0.0",
+  "description": "Privacy-preserving backend for SafeKeyboard cyberbullying prevention",
+  "main": "api/logViolation.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "keywords": [
+    "cyberbullying",
+    "prevention",
+    "privacy",
+    "keyboard",
+    "android"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@vercel/kv": "^1.0.1"
+  },
+  "devDependencies": {
+    "vercel": "^33.0.0"
+  }
+}
