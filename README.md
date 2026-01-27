@@ -48,15 +48,26 @@ Phd_Keyboard/
 │   │   └── build.gradle
 │   └── settings.gradle
 │
-├── backend/                    # Vercel Serverless Backend
-│   ├── api/
-│   │   ├── logViolation.js    # Main API endpoint
-│   │   └── getStats.js        # Statistics endpoint
+├── SecureDashboard/            # Integrated Dashboard + API Backend
+│   ├── app/
+│   │   ├── api/                  # API endpoints
+│   │   │   ├── logViolation/    # Android app violation logging
+│   │   │   ├── getStats/        # User stats retrieval
+│   │   │   ├── auth/            # NextAuth authentication
+│   │   │   └── dashboard/       # Dashboard-specific APIs
+│   │   ├── dashboard/           # Protected dashboard pages
+│   │   │   ├── page.tsx         # Overview with real-time stats
+│   │   │   ├── analytics/       # Charts & visualizations
+│   │   │   ├── users/           # User search & monitoring
+│   │   │   ├── monitor/         # Real-time event feed
+│   │   │   └── export/          # Data export (CSV/JSON)
+│   │   └── login/               # Login page
+│   ├── lib/                     # Shared utilities
 │   ├── package.json
-│   ├── vercel.json
-│   └── .env.example
+│   └── README.md
 │
-└── README.md                   # This file
+├── backend/                     # (Legacy - kept for reference)
+└── README.md                    # This file
 ```
 
 ## 🚀 Quick Start
@@ -80,16 +91,16 @@ Phd_Keyboard/
    - Click Run in Android Studio
    - Enable SafeKeyboard in device settings
 
-### Backend (Vercel)
+### SecureDashboard (Integrated Backend + Frontend)
 
 1. **Install Vercel CLI**
    ```bash
    npm install -g vercel
    ```
 
-2. **Navigate to backend directory**
+2. **Navigate to SecureDashboard directory**
    ```bash
-   cd backend
+   cd SecureDashboard
    ```
 
 3. **Install dependencies**

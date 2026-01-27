@@ -11,8 +11,13 @@ import java.util.concurrent.TimeUnit
  */
 object RetrofitClient {
 
-    // TODO: Replace with your actual Vercel deployment URL
-    private const val BASE_URL = "https://your-app.vercel.app"
+    // TODO: Replace with your SecureDashboard Vercel deployment URL
+    // After deploying SecureDashboard to Vercel, update this URL
+    // Example: https://secure-dashboard-xyz.vercel.app
+    // The API endpoints will be at:
+    // - /api/logViolation (for logging violations)
+    // - /api/getStats (for retrieving user stats)
+    private const val BASE_URL = "https://your-secure-dashboard.vercel.app"
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY
