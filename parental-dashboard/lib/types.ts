@@ -1,0 +1,68 @@
+/**
+ * Type definitions for SendWise Parental Dashboard
+ */
+
+export type SeverityLevel = 'urgent' | 'critical' | 'high' | 'medium' | 'low' | 'none';
+
+export type IncidentCategory =
+  | 'self_harm'
+  | 'privacy_risk'
+  | 'risky_behavior'
+  | 'meeting_stranger'
+  | 'cyberbullying';
+
+export type Platform =
+  | 'instagram'
+  | 'discord'
+  | 'whatsapp'
+  | 'facebook'
+  | 'twitter'
+  | 'tiktok'
+  | 'snapchat'
+  | 'reddit'
+  | 'other';
+
+export type ActionTaken =
+  | 'blocked'
+  | 'edited'
+  | 'sent_anyway'
+  | 'cancelled';
+
+export interface Incident {
+  id: string;
+  childId: string;
+  timestamp: Date;
+  platform: Platform;
+  category: IncidentCategory;
+  severity: SeverityLevel;
+  detectedText: string; // Partial/sanitized text shown to parent
+  action: ActionTaken;
+  detections: {
+    type: string;
+    matches: string[];
+  }[];
+  recommendation: string;
+  resources?: string[];
+}
+
+export interface Child {
+  id: string;
+  name: string;
+  age: number;
+  avatarUrl?: string;
+}
+
+export interface DashboardStats {
+  totalIncidents: number;
+  criticalIncidents: number;
+  highPriorityIncidents: number;
+  messagesPrevent ed: number;
+  lastIncidentTime?: Date;
+}
+
+export interface CategoryStats {
+  category: IncidentCategory;
+  count: number;
+  trend: 'up' | 'down' | 'stable';
+  mostRecentSeverity: SeverityLevel;
+}
