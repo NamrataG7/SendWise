@@ -30,6 +30,7 @@
   // In Node.js, these are required from separate files
 
   let ToxicityAnalyzer, EmojiAnalyzer, SarcasmDetector, ContextDetector, WarningEscalator;
+  let PrivacyDetector, SelfHarmDetector, RiskyBehaviorDetector, MeetingDetector;
 
   // Check if running in Node.js
   if (typeof module !== 'undefined' && module.exports) {
@@ -40,6 +41,12 @@
       SarcasmDetector = require('./sarcasm-detector.js').SarcasmDetector || require('./sarcasm-detector.js');
       ContextDetector = require('./context-detector.js').ContextDetector || require('./context-detector.js');
       WarningEscalator = require('./warning-escalator.js').WarningEscalator || require('./warning-escalator.js');
+
+      // Parental Dashboard modules
+      PrivacyDetector = require('./privacy-detector.js').PrivacyDetector || require('./privacy-detector.js');
+      SelfHarmDetector = require('./self-harm-detector.js').SelfHarmDetector || require('./self-harm-detector.js');
+      RiskyBehaviorDetector = require('./risky-behavior-detector.js').RiskyBehaviorDetector || require('./risky-behavior-detector.js');
+      MeetingDetector = require('./meeting-detector.js').MeetingDetector || require('./meeting-detector.js');
     } catch (e) {
       console.warn('[SafeKeyboard] Could not load modules in Node.js:', e.message);
     }
@@ -50,6 +57,12 @@
     SarcasmDetector = (typeof self !== 'undefined' && self.SarcasmDetector) || (typeof window !== 'undefined' && window.SarcasmDetector);
     ContextDetector = (typeof self !== 'undefined' && self.ContextDetector) || (typeof window !== 'undefined' && window.ContextDetector);
     WarningEscalator = (typeof self !== 'undefined' && self.WarningEscalator) || (typeof window !== 'undefined' && window.WarningEscalator);
+
+    // Parental Dashboard modules
+    PrivacyDetector = (typeof self !== 'undefined' && self.PrivacyDetector) || (typeof window !== 'undefined' && window.PrivacyDetector);
+    SelfHarmDetector = (typeof self !== 'undefined' && self.SelfHarmDetector) || (typeof window !== 'undefined' && window.SelfHarmDetector);
+    RiskyBehaviorDetector = (typeof self !== 'undefined' && self.RiskyBehaviorDetector) || (typeof window !== 'undefined' && window.RiskyBehaviorDetector);
+    MeetingDetector = (typeof self !== 'undefined' && self.MeetingDetector) || (typeof window !== 'undefined' && window.MeetingDetector);
   }
 
   /**
@@ -133,17 +146,23 @@
     // Main analyzer
     analyze: analyzeComplete,
 
-    // Individual modules (if needed)
+    // Cyberbullying detection modules
     ToxicityAnalyzer,
     EmojiAnalyzer,
     SarcasmDetector,
     ContextDetector,
     WarningEscalator,
 
+    // Parental Dashboard safety modules
+    PrivacyDetector,
+    SelfHarmDetector,
+    RiskyBehaviorDetector,
+    MeetingDetector,
+
     // Helper methods
     getWarningLevel,
 
     // Version
-    version: '1.0.0'
+    version: '2.0.0'
   };
 }));
