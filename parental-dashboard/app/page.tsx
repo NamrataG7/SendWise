@@ -194,8 +194,8 @@ export default function Dashboard() {
           <div className="flex items-center justify-between text-sm text-gray-600">
             <p>SendWise Parental Dashboard v1.0</p>
             <div className="flex gap-4">
-              <a href="#" className="hover:text-blue-600">Privacy Policy</a>
-              <a href="#" className="hover:text-blue-600">Terms of Service</a>
+              <a href="/privacy" className="hover:text-blue-600">Privacy Policy</a>
+              <a href="/terms" className="hover:text-blue-600">Terms of Service</a>
               <a href="#" className="hover:text-blue-600">Get Help</a>
             </div>
           </div>
