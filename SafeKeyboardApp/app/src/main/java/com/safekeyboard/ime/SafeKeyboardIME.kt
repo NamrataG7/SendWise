@@ -228,7 +228,11 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
                 val message = messageBuffer.getCurrentMessage()
 
                 if (message.isNotEmpty()) {
-                    analyzeAndIntervene(message)
+                    // ONLY analyze in social/gaming/communication contexts
+                    // NOT in productivity apps (Google Docs, Word, Notes, Search)
+                    if (sendIntentDetector.isSocialCommunicationApp()) {
+                        analyzeAndIntervene(message)
+                    }
                 }
             }
         }

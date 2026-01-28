@@ -42,4 +42,11 @@
     <string name="toast_overlay_permission_needed">Please grant overlay permission to enable safety warnings</string>
     <string name="toast_counters_reset">Statistics have been reset</string>
     <string name="toast_analysis_failed">Content analysis unavailable, message allowed</string>
+
+    <!-- Legal Notices -->
+    <string name="legal_notice_default">Harmful online communication may violate laws in your jurisdiction. Think before you send.</string>
+    <string name="legal_notice_harassment">Online harassment may violate:\n• Section 506 IPC (Criminal Intimidation) - India\n• 18 U.S.C. § 875 (Interstate Communications) - USA\n• Communications Act 2003, Section 127 - UK</string>
+    <string name="legal_notice_hate">Hate speech online may violate:\n• Section 153A IPC (Promoting enmity) - India\n• 18 U.S.C. § 249 (Hate Crimes) - USA\n• Public Order Act 1986, Section 4A - UK</string>
+    <string name="legal_notice_threat">Making threats online may violate:\n• Section 506 IPC (Criminal Intimidation) - India\n• 18 U.S.C. § 875 (Interstate Communications) - USA\n• Communications Act 2003 - UK</string>
+    <string name="legal_notice_sexual">Sexual harassment online may violate:\n• Section 354A IPC, IT Act Section 67 - India\n• Title IX, State Sexual Harassment Laws - USA\n• Sexual Offences Act 2003 - UK</string>
 </resources>

@@ -25,4 +25,9 @@
     <color name="warning_text">#FF212121</color>
     <color name="button_edit">#FF4CAF50</color>
     <color name="button_send_anyway">#FFF44336</color>
+
+    <!-- Legal notice colors -->
+    <color name="legal_background">#FFF3E5F5</color>
+    <color name="legal_text">#FF6A1B9A</color>
+    <color name="legal_text_secondary">#FF7B1FA2</color>
 </resources>

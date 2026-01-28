@@ -111,6 +111,17 @@ class WarningOverlayManager(private val context: Context) {
             categoryBadge.text = category.uppercase()
             categoryBadge.visibility = View.VISIBLE
 
+            // Set legal notice text based on category
+            val legalNoticeText = view.findViewById<TextView>(R.id.legal_notice_text)
+            val legalTextResId = when (category.lowercase()) {
+                "harassment" -> R.string.legal_notice_harassment
+                "hate" -> R.string.legal_notice_hate
+                "threat" -> R.string.legal_notice_threat
+                "sexual" -> R.string.legal_notice_sexual
+                else -> R.string.legal_notice_default
+            }
+            legalNoticeText.setText(legalTextResId)
+
             // Set up Edit button
             val editButton = view.findViewById<Button>(R.id.button_edit)
             editButton.setOnClickListener {
