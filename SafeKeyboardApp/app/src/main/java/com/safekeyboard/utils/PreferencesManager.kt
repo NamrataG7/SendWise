@@ -22,6 +22,10 @@ class PreferencesManager(context: Context) {
         private const val KEY_VIOLATION_COUNT = "violation_count"
         private const val KEY_WARNING_COUNT = "warning_count"
         private const val KEY_LAST_CATEGORY = "last_category"
+        private const val KEY_TOS_ACCEPTED = "tos_accepted_v1"
+        private const val KEY_TOS_ACCEPTED_TIMESTAMP = "tos_accepted_timestamp"
+        private const val KEY_AGE_VERIFIED = "age_verified"
+        private const val KEY_PARENTAL_CONSENT = "parental_consent"
 
         // Default values
         private const val DEFAULT_MODERATION_ENABLED = true
@@ -113,6 +117,58 @@ class PreferencesManager(context: Context) {
     }
 
     /**
+     * Checks if Terms of Service have been accepted
+     */
+    fun isToSAccepted(): Boolean {
+        return prefs.getBoolean(KEY_TOS_ACCEPTED, false)
+    }
+
+    /**
+     * Sets Terms of Service acceptance
+     */
+    fun setToSAccepted(accepted: Boolean) {
+        prefs.edit()
+            .putBoolean(KEY_TOS_ACCEPTED, accepted)
+            .putLong(KEY_TOS_ACCEPTED_TIMESTAMP, System.currentTimeMillis())
+            .apply()
+    }
+
+    /**
+     * Gets ToS acceptance timestamp
+     */
+    fun getToSAcceptanceTimestamp(): Long {
+        return prefs.getLong(KEY_TOS_ACCEPTED_TIMESTAMP, 0)
+    }
+
+    /**
+     * Checks if age has been verified
+     */
+    fun isAgeVerified(): Boolean {
+        return prefs.getBoolean(KEY_AGE_VERIFIED, false)
+    }
+
+    /**
+     * Sets age verification status
+     */
+    fun setAgeVerified(verified: Boolean) {
+        prefs.edit().putBoolean(KEY_AGE_VERIFIED, verified).apply()
+    }
+
+    /**
+     * Checks if parental consent was given (for users under 13)
+     */
+    fun hasParentalConsent(): Boolean {
+        return prefs.getBoolean(KEY_PARENTAL_CONSENT, false)
+    }
+
+    /**
+     * Sets parental consent status
+     */
+    fun setParentalConsent(given: Boolean) {
+        prefs.edit().putBoolean(KEY_PARENTAL_CONSENT, given).apply()
+    }
+
+    /**
      * Gets all preferences for export/debugging
      */
     fun getAllPreferences(): Map<String, Any?> {
@@ -121,7 +177,10 @@ class PreferencesManager(context: Context) {
             "sensitivityThreshold" to getSensitivityThreshold(),
             "violationCount" to getViolationCount(),
             "warningCount" to getWarningCount(),
-            "lastCategory" to getLastCategory()
+            "lastCategory" to getLastCategory(),
+            "tosAccepted" to isToSAccepted(),
+            "ageVerified" to isAgeVerified(),
+            "parentalConsent" to hasParentalConsent()
         )
     }
 }

@@ -101,6 +101,21 @@
                     android:gravity="center"
                     android:lineSpacingMultiplier="1.2" />
 
+                <!-- Legal Disclaimer -->
+                <TextView
+                    android:id="@+id/legal_disclaimer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:paddingTop="8dp"
+                    android:text="@string/legal_disclaimer"
+                    android:textSize="10sp"
+                    android:textStyle="italic"
+                    android:textColor="@color/legal_text_secondary"
+                    android:gravity="center"
+                    android:lineSpacingMultiplier="1.2"
+                    android:background="@drawable/legal_notice_background" />
+
             </LinearLayout>
 
             <!-- Button Container -->

@@ -49,4 +49,7 @@
     <string name="legal_notice_hate">Hate speech online may violate:\n• Section 153A IPC (Promoting enmity) - India\n• 18 U.S.C. § 249 (Hate Crimes) - USA\n• Public Order Act 1986, Section 4A - UK</string>
     <string name="legal_notice_threat">Making threats online may violate:\n• Section 506 IPC (Criminal Intimidation) - India\n• 18 U.S.C. § 875 (Interstate Communications) - USA\n• Communications Act 2003 - UK</string>
     <string name="legal_notice_sexual">Sexual harassment online may violate:\n• Section 354A IPC, IT Act Section 67 - India\n• Title IX, State Sexual Harassment Laws - USA\n• Sexual Offences Act 2003 - UK</string>
+
+    <!-- Legal Disclaimer -->
+    <string name="legal_disclaimer">⚠️ Disclaimer: This information is for educational purposes only and does not constitute legal advice. Laws vary by jurisdiction. Consult a licensed attorney for specific legal guidance.</string>
 </resources>

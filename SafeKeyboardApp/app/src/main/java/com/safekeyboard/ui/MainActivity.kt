@@ -7,10 +7,12 @@ import android.provider.Settings
 import android.view.View
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
 import com.safekeyboard.R
+import com.safekeyboard.utils.PreferencesManager
 
 /**
  * MainActivity - Main entry point of the app
@@ -26,10 +28,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var buttonSettings: Button
     private lateinit var buttonPrivacy: Button
     private lateinit var statusCard: CardView
+    private lateinit var prefsManager: PreferencesManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        // Initialize PreferencesManager
+        prefsManager = PreferencesManager(this)
+
+        // Check ToS and age verification on first run
+        checkFirstRunRequirements()
 
         // Initialize views
         buttonEnableKeyboard = findViewById(R.id.button_enable_keyboard)
@@ -49,6 +58,87 @@ class MainActivity : AppCompatActivity() {
         buttonPrivacy.setOnClickListener {
             showPrivacyDialog()
         }
+    }
+
+    /**
+     * Checks if user has accepted ToS and verified age (first run only)
+     */
+    private fun checkFirstRunRequirements() {
+        if (!prefsManager.isToSAccepted()) {
+            showAgeVerificationDialog()
+        }
+    }
+
+    /**
+     * Shows age verification dialog (COPPA compliance)
+     */
+    private fun showAgeVerificationDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Age Verification")
+            .setMessage("SafeKeyboard is designed to promote online safety.\n\nAre you 13 years of age or older?")
+            .setPositiveButton("Yes, I'm 13+") { _, _ ->
+                prefsManager.setAgeVerified(true)
+                showToSDialog()
+            }
+            .setNegativeButton("No, I'm under 13") { _, _ ->
+                showParentalConsentDialog()
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    /**
+     * Shows parental consent dialog for users under 13
+     */
+    private fun showParentalConsentDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Parental Consent Required")
+            .setMessage("Users under 13 require parental permission to use this app.\n\n" +
+                    "Please have a parent or guardian review the Terms of Service and Privacy Policy, " +
+                    "then tap \"Parent: I Consent\" below.")
+            .setPositiveButton("Parent: I Consent") { _, _ ->
+                prefsManager.setAgeVerified(true)
+                prefsManager.setParentalConsent(true)
+                showToSDialog()
+            }
+            .setNegativeButton("Exit") { _, _ ->
+                Toast.makeText(this,
+                    "Parental consent is required to use SafeKeyboard",
+                    Toast.LENGTH_LONG).show()
+                finish()
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    /**
+     * Shows Terms of Service acceptance dialog
+     */
+    private fun showToSDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Terms of Service")
+            .setMessage("By using SafeKeyboard, you agree to:\n\n" +
+                    "• Monitoring of keyboard input for safety purposes\n" +
+                    "• Collection of anonymous violation statistics\n" +
+                    "• No guarantee of 100% accuracy (false positives/negatives possible)\n" +
+                    "• \"AS IS\" provision - no liability for missed detections\n" +
+                    "• You are ultimately responsible for your messages\n\n" +
+                    "Full Terms of Service and Privacy Policy available in Settings.\n\n" +
+                    "Do you agree to these terms?")
+            .setPositiveButton("I Agree") { _, _ ->
+                prefsManager.setToSAccepted(true)
+                Toast.makeText(this,
+                    "Welcome to SafeKeyboard! Enable it in Settings below.",
+                    Toast.LENGTH_LONG).show()
+            }
+            .setNegativeButton("Decline") { _, _ ->
+                Toast.makeText(this,
+                    "You must accept the Terms of Service to use SafeKeyboard",
+                    Toast.LENGTH_LONG).show()
+                finish()
+            }
+            .setCancelable(false)
+            .show()
     }
 
     override fun onResume() {
