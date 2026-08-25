@@ -14,10 +14,17 @@
     <color name="accent">#FFFF9800</color>
 
     <!-- Keyboard colors -->
-    <color name="key_background">#FFEEEEEE</color>
-    <color name="key_background_pressed">#FFE0E0E0</color>
-    <color name="key_text">#FF212121</color>
-    <color name="keyboard_background">#FFD6D6D6</color>
+    <color name="key_background">#FFFFFFFF</color>
+    <color name="key_background_pressed">#FFD6E4FF</color>
+    <color name="key_background_modifier">#FFE8EAED</color>
+    <color name="key_text">#FF202124</color>
+    <color name="key_shadow">#33000000</color>
+    <color name="key_stroke">#22000000</color>
+    <color name="keyboard_background">#FFECEFF1</color>
+    <color name="suggestion_strip_bg">#FFECEFF1</color>
+    <color name="suggestion_text">#FF202124</color>
+    <color name="suggestion_text_highlight">#FF1A73E8</color>
+    <color name="suggestion_divider">#33000000</color>
 
     <!-- Warning colors (legacy) -->
     <color name="warning_overlay_background">#B3000000</color>

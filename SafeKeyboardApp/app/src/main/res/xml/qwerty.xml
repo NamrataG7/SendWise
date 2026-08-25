@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Keyboard xmlns:android="http://schemas.android.com/apk/res/android"
     android:keyWidth="10%p"
-    android:horizontalGap="2dp"
-    android:verticalGap="4dp"
-    android:keyHeight="60dp">
+    android:horizontalGap="4dp"
+    android:verticalGap="6dp"
+    android:keyHeight="54dp">
 
     <Row>
         <Key android:codes="113" android:keyLabel="q" android:keyEdgeFlags="left"/>
@@ -42,7 +42,7 @@
         <Key android:codes="110" android:keyLabel="n"/>
         <Key android:codes="109" android:keyLabel="m"/>
         <Key android:codes="-5" android:keyIcon="@drawable/ic_backspace"
-            android:keyWidth="15%p" android:isRepeatable="true" android:keyEdgeFlags="right"/>
+            android:keyWidth="15%p" android:keyEdgeFlags="right"/>
     </Row>
 
     <Row android:rowEdgeFlags="bottom">

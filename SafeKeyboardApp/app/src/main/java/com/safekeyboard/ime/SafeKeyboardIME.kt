@@ -3,6 +3,10 @@ package com.safekeyboard.ime
 import android.inputmethodservice.InputMethodService
 import android.inputmethodservice.Keyboard
 import android.inputmethodservice.KeyboardView
+import android.os.Handler
+import android.os.Looper
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.util.Log
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -29,6 +33,19 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
 
     private var keyboardView: KeyboardView? = null
     private var keyboard: Keyboard? = null
+    private var suggestionStrip: SuggestionStripView? = null
+
+    // Long-press handling for top-row digits (Q..P => 1..0) and backspace repeat.
+    private val pressHandler = Handler(Looper.getMainLooper())
+    private var pendingLongPress: Runnable? = null
+    private var longPressConsumed = false
+    private var backspaceRepeat: Runnable? = null
+
+    // Map top-row letter codes -> digit char.
+    private val topRowDigits: Map<Int, Char> = mapOf(
+        113 to '1', 119 to '2', 101 to '3', 114 to '4', 116 to '5',
+        121 to '6', 117 to '7', 105 to '8', 111 to '9', 112 to '0'
+    )
 
     // Message buffer - NEVER persisted
     private val messageBuffer = MessageBuffer()
@@ -121,11 +138,18 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
     }
 
     override fun onCreateInputView(): View {
-        keyboardView = layoutInflater.inflate(R.layout.keyboard_view, null) as KeyboardView
+        val root = layoutInflater.inflate(R.layout.keyboard_view, null)
+        keyboardView = root.findViewById(R.id.keyboard_view)
+        suggestionStrip = root.findViewById(R.id.suggestion_strip)
         keyboard = Keyboard(this, R.xml.qwerty)
         keyboardView?.keyboard = keyboard
         keyboardView?.setOnKeyboardActionListener(this)
-        return keyboardView!!
+
+        // Tap suggestion -> replace current partial word via InputConnection.
+        suggestionStrip?.onSuggestionTapped = { word ->
+            replaceCurrentWord(word)
+        }
+        return root
     }
 
     override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
@@ -201,6 +225,13 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
     override fun onKey(primaryCode: Int, keyCodes: IntArray?) {
         val inputConnection = currentInputConnection ?: return
 
+        // If a long-press handler already committed a digit / repeat-deleted
+        // for this key press, swallow the normal onKey.
+        if (longPressConsumed) {
+            longPressConsumed = false
+            return
+        }
+
         when (primaryCode) {
             Keyboard.KEYCODE_DELETE -> handleBackspace(inputConnection)
             Keyboard.KEYCODE_SHIFT -> handleShift()
@@ -211,14 +242,40 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
 
         // Update last key press time for pause detection
         lastKeyPressTime = System.currentTimeMillis()
+
+        // Refresh the suggestion strip after any character-affecting key.
+        refreshSuggestions()
     }
 
     override fun onPress(primaryCode: Int) {
-        // Key press started
+        // Cancel any pending timers from a previous key.
+        cancelPendingTimers()
+        longPressConsumed = false
+
+        when {
+            // Top-row letters: schedule digit-insert after 300ms.
+            topRowDigits.containsKey(primaryCode) -> {
+                val digit = topRowDigits.getValue(primaryCode)
+                pendingLongPress = Runnable {
+                    val ic = currentInputConnection ?: return@Runnable
+                    ic.commitText(digit.toString(), 1)
+                    messageBuffer.append(digit.toString())
+                    longPressConsumed = true
+                    lastKeyPressTime = System.currentTimeMillis()
+                    refreshSuggestions()
+                    vibrate(30)
+                }
+                pressHandler.postDelayed(pendingLongPress!!, 300)
+            }
+            // Backspace: schedule accelerating repeat.
+            primaryCode == Keyboard.KEYCODE_DELETE -> {
+                scheduleBackspaceAcceleration()
+            }
+        }
     }
 
     override fun onRelease(primaryCode: Int) {
-        // Key press released
+        cancelPendingTimers()
     }
 
     override fun onText(text: CharSequence?) {
@@ -308,6 +365,128 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
 
     private fun handleModeChange() {
         // Switch between alphabetic and numeric keyboards (future enhancement)
+    }
+
+    // -----------------------------------------------------------------------
+    // Suggestion strip wiring
+    // -----------------------------------------------------------------------
+
+    private fun currentPartialWord(): String {
+        val ic = currentInputConnection ?: return ""
+        val before = ic.getTextBeforeCursor(64, 0)?.toString() ?: return ""
+        // Take the trailing run of letters (partial word).
+        val sb = StringBuilder()
+        for (i in before.length - 1 downTo 0) {
+            val c = before[i]
+            if (c.isLetter()) sb.append(c) else break
+        }
+        return sb.reverse().toString()
+    }
+
+    private fun refreshSuggestions() {
+        suggestionStrip?.updateForPrefix(currentPartialWord())
+    }
+
+    private fun replaceCurrentWord(word: String) {
+        val ic = currentInputConnection ?: return
+        val partial = currentPartialWord()
+        ic.beginBatchEdit()
+        try {
+            if (partial.isNotEmpty()) {
+                ic.deleteSurroundingText(partial.length, 0)
+                // Sync buffer.
+                repeat(partial.length) { messageBuffer.deleteLastChar() }
+            }
+            val out = word + " "
+            ic.commitText(out, 1)
+            messageBuffer.append(out)
+        } finally {
+            ic.endBatchEdit()
+        }
+        refreshSuggestions()
+    }
+
+    // -----------------------------------------------------------------------
+    // Backspace acceleration + long-press timers
+    // -----------------------------------------------------------------------
+
+    private fun cancelPendingTimers() {
+        pendingLongPress?.let { pressHandler.removeCallbacks(it) }
+        pendingLongPress = null
+        backspaceRepeat?.let { pressHandler.removeCallbacks(it) }
+        backspaceRepeat = null
+    }
+
+    /**
+     * Backspace hold behavior:
+     *   0..500ms  : single tap only (handled by onKey)
+     *   500ms+    : 1 char / 40ms
+     *   2000ms+   : whole word at a time (every 120ms)
+     * Vibrates 30ms on each threshold change.
+     */
+    private fun scheduleBackspaceAcceleration() {
+        val startTime = System.currentTimeMillis()
+        var stage = 0 // 0=idle, 1=char-repeat, 2=word-repeat
+        val runnable = object : Runnable {
+            override fun run() {
+                val ic = currentInputConnection ?: return
+                val elapsed = System.currentTimeMillis() - startTime
+                val newStage = when {
+                    elapsed >= 2000 -> 2
+                    elapsed >= 500 -> 1
+                    else -> 0
+                }
+                if (newStage != stage) {
+                    stage = newStage
+                    if (stage > 0) vibrate(30)
+                }
+                when (stage) {
+                    1 -> {
+                        ic.deleteSurroundingText(1, 0)
+                        messageBuffer.deleteLastChar()
+                        refreshSuggestions()
+                        pressHandler.postDelayed(this, 40)
+                    }
+                    2 -> {
+                        deletePrecedingWord(ic)
+                        refreshSuggestions()
+                        pressHandler.postDelayed(this, 120)
+                    }
+                    else -> {
+                        // Not yet at threshold — check again shortly.
+                        pressHandler.postDelayed(this, 60)
+                    }
+                }
+            }
+        }
+        backspaceRepeat = runnable
+        // First check after 500ms (initial single tap is handled separately by onKey).
+        pressHandler.postDelayed(runnable, 500)
+    }
+
+    private fun deletePrecedingWord(ic: InputConnection) {
+        val before = ic.getTextBeforeCursor(64, 0)?.toString() ?: return
+        if (before.isEmpty()) return
+        // Trim one trailing whitespace, then all trailing non-whitespace.
+        var i = before.length
+        while (i > 0 && before[i - 1].isWhitespace()) i--
+        while (i > 0 && !before[i - 1].isWhitespace()) i--
+        val deleteCount = before.length - i
+        if (deleteCount > 0) {
+            ic.deleteSurroundingText(deleteCount, 0)
+            repeat(deleteCount) { messageBuffer.deleteLastChar() }
+        }
+    }
+
+    private fun vibrate(ms: Long) {
+        try {
+            val v = getSystemService(VIBRATOR_SERVICE) as? Vibrator ?: return
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                v.vibrate(VibrationEffect.createOneShot(ms, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION") v.vibrate(ms)
+            }
+        } catch (_: Exception) { /* haptics are best-effort */ }
     }
 
     /**
@@ -544,6 +723,7 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
         }
         super.onDestroy()
         serviceScope.cancel()
+        cancelPendingTimers()
         overlayManager.cleanup()
         enhancedAnalyzer.destroy()
     }
