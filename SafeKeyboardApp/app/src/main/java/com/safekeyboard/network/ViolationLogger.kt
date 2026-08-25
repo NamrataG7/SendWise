@@ -7,35 +7,94 @@ import android.os.Build
 import com.safekeyboard.utils.PreferencesManager
 import com.safekeyboard.utils.UserIdGenerator
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import retrofit2.Response
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+import java.util.UUID
 
 /**
- * ViolationLogger - Handles logging violations to the server
+ * ViolationLogger - POSTs violation metadata to /api/violations.
+ *
+ * Payload matches parental-dashboard/lib/schema.ts ViolationIngestSchema:
+ *   { user_id_hash, timestamp (ISO 8601), category, severity, action, session_id }
  *
  * RULES:
- * - Only when user chooses "Send anyway"
- * - Fire-and-forget
- * - Retry when online
- * - HTTPS only
- * - JSON only
- *
- * OFFLINE HANDLING:
- * - Queue locally (count only)
- * - Sync later
- * - Never queue text
+ * - NEVER include text / message / content (server rejects strictly).
+ * - session_id is a per-app-launch UUID (not persisted).
+ * - Category is mapped from internal analyzer names to the 5 API enum values.
+ * - Severity is normalized to low | medium | high.
+ * - HTTPS only, TLS 1.3 preferred (see RetrofitClient).
+ * - 429 rate-limit: log + exponential backoff, max 3 attempts.
+ * - Offline: queue count-only, sync when online.
  */
 class ViolationLogger(private val context: Context) {
+
+    companion object {
+        // Per-app-launch UUID (companion => shared across ViolationLogger instances in this process).
+        // Not persisted; regenerated on process restart, per paper's session_id definition.
+        val SESSION_ID: String = UUID.randomUUID().toString()
+
+        private const val MAX_RETRY_ATTEMPTS = 3
+        private const val INITIAL_BACKOFF_MS = 500L
+
+        // Internal analyzer category -> API IncidentCategory enum.
+        // Existing analyzers (ToxicityAnalyzer / EnhancedToxicityAnalyzer) emit:
+        //   "harassment", "hate", "threat", "sexual", "bullying", "none"
+        // The dashboard schema only permits 5 values; map as follows:
+        private val CATEGORY_MAP: Map<String, String> = mapOf(
+            "harassment"       to "cyberbullying",
+            "bullying"         to "cyberbullying",
+            "cyberbullying"    to "cyberbullying",
+            "hate"             to "cyberbullying",
+            "threat"           to "risky_behavior",
+            "sexual"           to "risky_behavior",
+            "self_harm"        to "self_harm",
+            "selfharm"         to "self_harm",
+            "privacy"          to "privacy_risk",
+            "privacy_risk"     to "privacy_risk",
+            "stranger"         to "meeting_stranger",
+            "meeting_stranger" to "meeting_stranger",
+            "risky"            to "risky_behavior",
+            "risky_behavior"   to "risky_behavior"
+        )
+
+        private const val DEFAULT_CATEGORY = "cyberbullying"
+
+        fun mapCategory(internal: String): String {
+            val key = internal.trim().lowercase()
+            return CATEGORY_MAP[key] ?: DEFAULT_CATEGORY
+        }
+
+        fun normalizeSeverity(severity: String): String {
+            return when (severity.trim().lowercase()) {
+                "high", "severe", "critical" -> "high"
+                "low", "mild", "minor"       -> "low"
+                else                          -> "medium"
+            }
+        }
+
+        private val ISO_FORMAT: SimpleDateFormat by lazy {
+            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
+                timeZone = TimeZone.getTimeZone("UTC")
+            }
+        }
+
+        fun isoNow(): String = ISO_FORMAT.format(Date())
+    }
 
     private val apiService = RetrofitClient.apiService
     private val preferencesManager = PreferencesManager(context)
     private val queueFile = File(context.filesDir, "violation_queue.json")
 
     /**
-     * Logs a violation to the server
-     * If offline, queues for later sync
+     * Logs a violation to the server. If offline, queues for later sync.
      */
     suspend fun logViolation(
         category: String,
@@ -43,67 +102,75 @@ class ViolationLogger(private val context: Context) {
         action: String
     ) = withContext(Dispatchers.IO) {
         try {
-            // Get anonymous user ID
             val userId = UserIdGenerator.getAnonymousUserId(context)
 
-            // Create request
             val request = ViolationLogRequest(
                 user_id_hash = userId,
-                category = category,
-                severity = severity,
-                action = action
+                timestamp = isoNow(),
+                category = mapCategory(category),
+                severity = normalizeSeverity(severity),
+                action = action,
+                session_id = SESSION_ID
             )
 
-            // Check network connectivity
             if (isNetworkAvailable()) {
-                // Try to send immediately
-                sendViolation(request)
-
-                // Also try to sync any queued violations
+                sendViolationWithRetry(request)
                 syncQueuedViolations()
             } else {
-                // Queue for later
                 queueViolation(request)
             }
 
-            // Update local statistics
-            updateLocalStatistics(action, category)
-
+            updateLocalStatistics(action, request.category)
         } catch (e: Exception) {
             e.printStackTrace()
-            // Fail silently - don't block user
         }
     }
 
     /**
-     * Sends a violation to the server
+     * Sends a violation, retrying on 429 with exponential backoff.
      */
-    private suspend fun sendViolation(request: ViolationLogRequest) {
-        try {
-            val response = apiService.logViolation(request)
+    private suspend fun sendViolationWithRetry(request: ViolationLogRequest) {
+        var attempt = 0
+        var backoff = INITIAL_BACKOFF_MS
+        while (attempt < MAX_RETRY_ATTEMPTS) {
+            attempt++
+            try {
+                val response: Response<ViolationLogResponse> = apiService.logViolation(request)
 
-            if (response.isSuccessful) {
-                val body = response.body()
-                // Handle escalation flag if present
-                body?.escalation_flag?.let { flagged ->
-                    if (flagged) {
-                        handleEscalationFlag(body.current_count ?: 0)
+                if (response.isSuccessful) {
+                    response.body()?.escalation_flag?.let { flagged ->
+                        if (flagged) handleEscalationFlag(response.body()?.current_count ?: 0)
+                    }
+                    return
+                }
+
+                if (response.code() == 429) {
+                    println("ViolationLogger: 429 rate limit, attempt=$attempt, backoff=${backoff}ms")
+                    if (attempt < MAX_RETRY_ATTEMPTS) {
+                        delay(backoff)
+                        backoff *= 2
+                        continue
+                    } else {
+                        queueViolation(request)
+                        return
                     }
                 }
-            } else {
-                // Queue if server returns error
+
+                // Non-retryable error
                 queueViolation(request)
+                return
+            } catch (e: Exception) {
+                e.printStackTrace()
+                if (attempt >= MAX_RETRY_ATTEMPTS) {
+                    queueViolation(request)
+                    return
+                }
+                delay(backoff)
+                backoff *= 2
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            // Queue if network error
-            queueViolation(request)
         }
     }
 
-    /**
-     * Queues a violation for later sync
-     */
     private fun queueViolation(request: ViolationLogRequest) {
         try {
             val queue = loadQueue()
@@ -114,9 +181,6 @@ class ViolationLogger(private val context: Context) {
         }
     }
 
-    /**
-     * Syncs queued violations when network is available
-     */
     suspend fun syncQueuedViolations() = withContext(Dispatchers.IO) {
         try {
             if (!isNetworkAvailable()) return@withContext
@@ -131,22 +195,25 @@ class ViolationLogger(private val context: Context) {
                     val item = queue.getJSONObject(i)
                     val request = ViolationLogRequest(
                         user_id_hash = item.getString("user_id_hash"),
+                        timestamp = item.optString("timestamp_iso", isoNow()),
                         category = item.getString("category"),
                         severity = item.getString("severity"),
-                        action = item.getString("action")
+                        action = item.getString("action"),
+                        session_id = item.optString("session_id", SESSION_ID)
                     )
 
                     val response = apiService.logViolation(request)
                     if (response.isSuccessful) {
                         successfulIndices.add(i)
+                    } else if (response.code() == 429) {
+                        // Stop syncing this pass; try again next opportunity.
+                        break
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
-                    // Continue with other items
                 }
             }
 
-            // Remove successfully synced items
             if (successfulIndices.isNotEmpty()) {
                 val newQueue = JSONArray()
                 for (i in 0 until queue.length()) {
@@ -161,39 +228,27 @@ class ViolationLogger(private val context: Context) {
         }
     }
 
-    /**
-     * Creates a queue item from a request
-     */
     private fun createQueueItem(request: ViolationLogRequest): JSONObject {
         return JSONObject().apply {
             put("user_id_hash", request.user_id_hash)
             put("category", request.category)
             put("severity", request.severity)
             put("action", request.action)
+            put("timestamp_iso", request.timestamp)
+            put("session_id", request.session_id)
             put("timestamp", System.currentTimeMillis())
         }
     }
 
-    /**
-     * Loads the violation queue from disk
-     */
     private fun loadQueue(): JSONArray {
         return try {
-            if (queueFile.exists()) {
-                val json = queueFile.readText()
-                JSONArray(json)
-            } else {
-                JSONArray()
-            }
+            if (queueFile.exists()) JSONArray(queueFile.readText()) else JSONArray()
         } catch (e: Exception) {
             e.printStackTrace()
             JSONArray()
         }
     }
 
-    /**
-     * Saves the violation queue to disk
-     */
     private fun saveQueue(queue: JSONArray) {
         try {
             queueFile.writeText(queue.toString())
@@ -202,67 +257,35 @@ class ViolationLogger(private val context: Context) {
         }
     }
 
-    /**
-     * Updates local statistics
-     */
     private fun updateLocalStatistics(action: String, category: String) {
         when (action) {
-            "sent_anyway" -> {
-                preferencesManager.incrementViolationCount(2) // +2 for send anyway
-            }
-            "warning_only" -> {
-                preferencesManager.incrementWarningCount(1) // +1 for warning
-            }
+            "sent_anyway" -> preferencesManager.incrementViolationCount(2)
+            "warning_only" -> preferencesManager.incrementWarningCount(1)
         }
         preferencesManager.setLastCategory(category)
     }
 
-    /**
-     * Handles escalation flag from server
-     */
     private fun handleEscalationFlag(count: Int) {
-        // This could trigger additional UI warnings or notifications
-        // For now, just log it
         println("Escalation flag received. Total count: $count")
     }
 
-    /**
-     * Checks if network is available
-     */
     private fun isNetworkAvailable(): Boolean {
-        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val network = connectivityManager.activeNetwork ?: return false
-            val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
-            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            val network = cm.activeNetwork ?: return false
+            val caps = cm.getNetworkCapabilities(network) ?: return false
+            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
         } else {
             @Suppress("DEPRECATION")
-            val networkInfo = connectivityManager.activeNetworkInfo
+            val info = cm.activeNetworkInfo
             @Suppress("DEPRECATION")
-            networkInfo?.isConnected == true
+            info?.isConnected == true
         }
     }
 
-    /**
-     * Gets the current queue size
-     */
-    fun getQueueSize(): Int {
-        return try {
-            loadQueue().length()
-        } catch (e: Exception) {
-            0
-        }
-    }
+    fun getQueueSize(): Int = try { loadQueue().length() } catch (e: Exception) { 0 }
 
-    /**
-     * Clears the queue (for testing/debugging)
-     */
     fun clearQueue() {
-        try {
-            queueFile.delete()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        try { queueFile.delete() } catch (e: Exception) { e.printStackTrace() }
     }
 }

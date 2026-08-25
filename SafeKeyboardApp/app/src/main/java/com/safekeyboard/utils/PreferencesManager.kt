@@ -27,6 +27,11 @@ class PreferencesManager(context: Context) {
         private const val KEY_AGE_VERIFIED = "age_verified"
         private const val KEY_PARENTAL_CONSENT = "parental_consent"
 
+        // Parental-link pairing keys
+        private const val KEY_PAIRING_CODE = "pairing_code"
+        private const val KEY_PAIRING_EXPIRES_AT = "pairing_expires_at"
+        private const val KEY_IS_PAIRED = "is_paired"
+
         // Default values
         private const val DEFAULT_MODERATION_ENABLED = true
         private const val DEFAULT_SENSITIVITY_THRESHOLD = 0.5f
@@ -166,6 +171,56 @@ class PreferencesManager(context: Context) {
      */
     fun setParentalConsent(given: Boolean) {
         prefs.edit().putBoolean(KEY_PARENTAL_CONSENT, given).apply()
+    }
+
+    // ----------------------------------------------------------------------
+    // Parental-link pairing
+    // ----------------------------------------------------------------------
+
+    /** Returns the currently stored 6-digit pairing code, or null if none. */
+    fun getPairingCode(): String? {
+        return prefs.getString(KEY_PAIRING_CODE, null)
+    }
+
+    /** Returns the epoch-ms expiry of the stored pairing code, or 0 if none. */
+    fun getPairingExpiresAt(): Long {
+        return prefs.getLong(KEY_PAIRING_EXPIRES_AT, 0L)
+    }
+
+    /** Persists a freshly issued pairing code and its expiry timestamp. */
+    fun setPairingCode(code: String, expiresAtEpochMs: Long) {
+        prefs.edit()
+            .putString(KEY_PAIRING_CODE, code)
+            .putLong(KEY_PAIRING_EXPIRES_AT, expiresAtEpochMs)
+            .apply()
+    }
+
+    /** Removes any stored pairing code (used on unlink or expiry). */
+    fun clearPairingCode() {
+        prefs.edit()
+            .remove(KEY_PAIRING_CODE)
+            .remove(KEY_PAIRING_EXPIRES_AT)
+            .apply()
+    }
+
+    /** True iff a pairing code exists and has not yet expired. */
+    fun hasUnexpiredPairingCode(): Boolean {
+        val code = getPairingCode() ?: return false
+        return code.isNotEmpty() && getPairingExpiresAt() > System.currentTimeMillis()
+    }
+
+    /** True iff this device has been linked to a parent dashboard account. */
+    fun isPaired(): Boolean {
+        return prefs.getBoolean(KEY_IS_PAIRED, false)
+    }
+
+    /** Sets the paired state. When unlinking, the pairing code is also cleared. */
+    fun setPaired(paired: Boolean) {
+        val editor = prefs.edit().putBoolean(KEY_IS_PAIRED, paired)
+        if (!paired) {
+            editor.remove(KEY_PAIRING_CODE).remove(KEY_PAIRING_EXPIRES_AT)
+        }
+        editor.apply()
     }
 
     /**

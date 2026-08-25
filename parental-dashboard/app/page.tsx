@@ -27,13 +27,15 @@ export default function Dashboard() {
 
   const handleExportReport = () => {
     // Generate CSV report
-    const headers = ['Timestamp', 'Platform', 'Category', 'Severity', 'Detected Text', 'Action', 'Recommendation'];
+    // Privacy guarantee (SendWise paper §Privacy by Design):
+    // Exported reports contain metadata only. Message content is analyzed on-device
+    // and never leaves the child's device, so it is not — and cannot be — exported.
+    const headers = ['Timestamp', 'Platform', 'Category', 'Severity', 'Action', 'Recommendation'];
     const rows = filteredIncidents.map(inc => [
       new Date(inc.timestamp).toLocaleString(),
       inc.platform,
       inc.category,
       inc.severity,
-      inc.detectedText,
       inc.action,
       inc.recommendation
     ]);

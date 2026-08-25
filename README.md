@@ -1,348 +1,123 @@
-# SafeKeyboard - Cyberbullying Prevention System
+# SendWise
 
-An Android keyboard (IME) that prevents cyberbullying and harassment through pre-send intervention while maintaining strict privacy standards.
+> **Privacy-Preserving Parental Awareness of Adolescent Cyberbullying Risk**
 
-## 🎯 Project Overview
-
-This project implements a **behavioral intervention system** that:
-
-- ✅ Runs entirely inside a custom Android keyboard (IME)
-- ✅ Detects full-message intent, not isolated words
-- ✅ Interrupts the user **before** they press Send
-- ✅ Gives user choice, not enforcement
-- ✅ Logs only violation counts, **never message content**
-- ✅ Fully compliant with platform and privacy constraints
-- ✅ Built 100% on free tiers (Vercel)
-
-## 🔒 Privacy-First Architecture
-
-### What This System Does:
-- Analyzes messages **on-device only**
-- Detects harmful intent using local NLP
-- Shows intervention popup before sending
-- Logs **anonymous metadata** only (if user chooses "Send Anyway")
-
-### What This System NEVER Does:
-- ❌ Upload message text
-- ❌ Store message content
-- ❌ Track real identities
-- ❌ Access Send button directly
-- ❌ Modify social media apps
-- ❌ Perform cloud-based message scanning
-
-## 📁 Project Structure
-
-```
-Phd_Keyboard/
-├── SafeKeyboardApp/          # Android Application
-│   ├── app/
-│   │   ├── src/main/
-│   │   │   ├── java/com/safekeyboard/
-│   │   │   │   ├── ime/          # Keyboard IME service
-│   │   │   │   ├── nlp/          # On-device toxicity analysis
-│   │   │   │   ├── ui/           # User interface components
-│   │   │   │   ├── network/      # API communication
-│   │   │   │   └── utils/        # Utilities (preferences, user ID)
-│   │   │   ├── res/              # Resources (layouts, strings, etc.)
-│   │   │   └── AndroidManifest.xml
-│   │   └── build.gradle
-│   └── settings.gradle
-│
-├── SecureDashboard/            # Integrated Dashboard + API Backend
-│   ├── app/
-│   │   ├── api/                  # API endpoints
-│   │   │   ├── logViolation/    # Android app violation logging
-│   │   │   ├── getStats/        # User stats retrieval
-│   │   │   ├── auth/            # NextAuth authentication
-│   │   │   └── dashboard/       # Dashboard-specific APIs
-│   │   ├── dashboard/           # Protected dashboard pages
-│   │   │   ├── page.tsx         # Overview with real-time stats
-│   │   │   ├── analytics/       # Charts & visualizations
-│   │   │   ├── users/           # User search & monitoring
-│   │   │   ├── monitor/         # Real-time event feed
-│   │   │   └── export/          # Data export (CSV/JSON)
-│   │   └── login/               # Login page
-│   ├── lib/                     # Shared utilities
-│   ├── package.json
-│   └── README.md
-│
-├── backend/                     # (Legacy - kept for reference)
-├── shared/                      # Shared Detection Library
-│   ├── detection-library/       # Universal toxicity detection
-│   │   ├── analyzer.js          # Rule-based detection engine
-│   │   ├── emoji-analyzer.js    # Emoji sentiment analysis
-│   │   ├── sarcasm-detector.js  # Sarcasm pattern detection
-│   │   ├── context-detector.js  # Platform context awareness
-│   │   ├── warning-escalator.js # 4-level escalation system
-│   │   ├── index.js             # UMD universal entry point
-│   │   └── README.md            # Complete API documentation
-│   └── INTEGRATION_GUIDE.md     # Integration guide for all products
-└── README.md                    # This file
-```
-
-## 🔬 Shared Detection Library
-
-A **universal toxicity detection library** used across all SafeKeyboard products:
-
-- ✅ **Chrome Extension** - Real-time browser detection
-- ✅ **Android Keyboard** - On-device message analysis
-- ✅ **Parental Dashboard** - Historical message review
-- ✅ **School Admin Dashboard** - Aggregate analytics
-
-**Key Features:**
-- 🎯 **90-95% accuracy** with all enhancements enabled
-- 🚀 **<5ms analysis time** - optimized for real-time use
-- 🌐 **Universal compatibility** - Browser, Node.js, Android WebView, React Native
-- 📊 **4 detection modules** - Rules, emoji sentiment, sarcasm, context awareness
-- 🔄 **Progressive escalation** - 4-level warning system
-
-**Documentation:**
-- API Reference: [`shared/detection-library/README.md`](shared/detection-library/README.md)
-- Integration Guide: [`shared/INTEGRATION_GUIDE.md`](shared/INTEGRATION_GUIDE.md)
-
-## 🚀 Quick Start
-
-### Android App
-
-1. **Open in Android Studio**
-   ```bash
-   cd SafeKeyboardApp
-   # Open this directory in Android Studio
-   ```
-
-2. **Update Backend URL**
-   Edit `SafeKeyboardApp/app/src/main/java/com/safekeyboard/network/RetrofitClient.kt`:
-   ```kotlin
-   private const val BASE_URL = "https://your-app.vercel.app"
-   ```
-
-3. **Build and Run**
-   - Connect Android device or start emulator (API 26+)
-   - Click Run in Android Studio
-   - Enable SafeKeyboard in device settings
-
-### SecureDashboard (Integrated Backend + Frontend)
-
-1. **Install Vercel CLI**
-   ```bash
-   npm install -g vercel
-   ```
-
-2. **Navigate to SecureDashboard directory**
-   ```bash
-   cd SecureDashboard
-   ```
-
-3. **Install dependencies**
-   ```bash
-   npm install
-   ```
-
-4. **Create Vercel KV Store**
-   - Go to https://vercel.com/dashboard/stores
-   - Create a new KV (Redis) database
-   - Copy the environment variables
-
-5. **Configure environment**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your KV credentials
-   ```
-
-6. **Deploy**
-   ```bash
-   vercel --prod
-   ```
-
-## 🏗️ System Components
-
-### 1. Android Keyboard (IME)
-- **File**: `SafeKeyboardIME.kt`
-- Captures user input
-- Maintains message buffer
-- Detects send intent
-- Triggers analysis and intervention
-
-### 2. Message Buffer
-- **File**: `MessageBuffer.kt`
-- Maintains full message context (max 500 chars)
-- Never persisted to disk
-- Cleared on app switch or send completion
-
-### 3. Send Intent Detector
-- **File**: `SendIntentDetector.kt`
-- Multi-signal scoring system:
-  - Enter key press (60% weight)
-  - Keyboard hidden (50% weight)
-  - Typing pause >1.5s (30% weight)
-  - Cursor moved away (20% weight)
-  - Chat app context (20% weight)
-
-### 4. On-Device NLP Analyzer
-- **File**: `ToxicityAnalyzer.kt`
-- **Phase 1**: Rule-based + lexicon + regex
-- Categories: harassment, hate, threat, sexual
-- Severity levels: low, medium, high
-- **Phase 2** (Future): TensorFlow Lite with DistilBERT
-
-### 5. Warning Overlay
-- **File**: `WarningOverlayManager.kt`
-- System overlay (requires permission)
-- Emotionally neutral messaging
-- Two options: Edit or Send Anyway
-
-### 6. Privacy-Preserving User ID
-- **File**: `UserIdGenerator.kt`
-- SHA-256(AndroidID + AppSalt)
-- One-way, non-reversible
-- Stable per device
-- No PII, no login required
-
-### 7. Violation Logger
-- **File**: `ViolationLogger.kt`
-- Logs metadata only (never message content)
-- Offline queue with retry
-- Fire-and-forget pattern
-
-### 8. Vercel Backend
-- **Files**: `logViolation.js`, `getStats.js`
-- Serverless functions
-- Vercel KV (Redis) storage
-- Counter and escalation logic
-
-## 📊 Escalation Thresholds
-
-| Count | Action |
-|-------|--------|
-| 5     | Soft warning |
-| 10    | Strong warning |
-| 20    | Platform moderation flag |
-| 30    | Authority escalation (optional, jurisdiction-based) |
-
-## 🔐 Identity Architecture
-
-### Three Separate Identities:
-
-1. **Keyboard User** (what your app knows)
-   - Anonymous hash: SHA-256(AndroidID + Salt)
-   - Violation count
-   - Category history
-
-2. **Platform User** (what WhatsApp/Instagram knows)
-   - Account name
-   - Messages
-   - Recipients
-   - IP address
-
-3. **Real-world Person** (legal identity)
-   - Name, phone, etc.
-   - Revealed through legal process only
-
-**Your app only touches #1. This is how you stay legal and effective.**
-
-## 🧪 Testing
-
-### Test the Keyboard
-1. Enable SafeKeyboard in device settings
-2. Open any chat app (WhatsApp, Messenger, etc.)
-3. Type a message with harmful content
-4. Wait for typing pause (1.5s) or press Enter
-5. Verify warning popup appears
-
-### Test Messages
-Try these test phrases:
-- "you're so stupid"
-- "nobody likes you"
-- "I'm going to hurt you"
-- "send me nudes"
-
-### Test Backend
-```bash
-curl -X POST https://your-app.vercel.app/api/logViolation \
-  -H "Content-Type: application/json" \
-  -d '{
-    "user_id_hash": "abc123...",
-    "category": "harassment",
-    "severity": "medium",
-    "action": "sent_anyway"
-  }'
-```
-
-## 📱 Requirements
-
-### Android App
-- Min SDK: 26 (Android 8.0)
-- Target SDK: 34 (Android 14)
-- Kotlin 1.9.0+
-- Android Studio Hedgehog or later
-
-### Backend
-- Node.js 18+
-- Vercel account (free tier)
-- Vercel KV database (free tier)
-
-## 🔧 Configuration
-
-### Sensitivity Threshold
-Adjust in app settings (0.0 to 1.0):
-- 0.3: High sensitivity (more warnings)
-- 0.5: Medium sensitivity (default)
-- 0.7: Low sensitivity (fewer warnings)
-
-### Toxicity Lexicon
-Edit in `ToxicityAnalyzer.kt`:
-```kotlin
-private val harassmentTerms = setOf(
-    "term1", "term2", ...
-)
-```
-
-## 📖 Research & Ethics
-
-### What You Can Claim:
-"Our system identifies repeat abusive behavior patterns at the device level, enabling early intervention and downstream investigation without violating user privacy."
-
-### What You CANNOT Claim:
-- ❌ "We identify cyber criminals"
-- ❌ "We track users across platforms"
-- ❌ "We report users to police automatically"
-- ❌ "We store abusive messages"
-
-## 🤝 Contributing
-
-This is a research project for cyberbullying prevention. Contributions welcome for:
-- Improved NLP models
-- Better intent-to-send detection
-- Additional language support
-- Privacy-preserving analytics
-
-## 📄 License
-
-MIT License - See LICENSE file for details
-
-## ⚠️ Important Notes
-
-1. **Never log message content** - This is a hard constraint
-2. **Fail open** - If analysis fails, allow the message
-3. **Free infrastructure only** - Stay within Vercel free tier limits
-4. **Privacy by design** - Every feature must respect privacy principles
-5. **User choice always** - Never block sending, only warn
-
-## 📞 Support
-
-For issues, questions, or contributions:
-- Open an issue on GitHub
-- Email: [your-email]
-- Documentation: See individual README files in subdirectories
-
-## 🎓 Academic Use
-
-This project is designed to be:
-- ✅ Publishable as IEEE paper
-- ✅ Defensible to regulators
-- ✅ Compliant with ethics committees
-- ✅ Aligned with research best practices
+[![Build APK](https://github.com/NamrataG7/SendWise/actions/workflows/build-apk.yml/badge.svg)](https://github.com/NamrataG7/SendWise/actions/workflows/build-apk.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node](https://img.shields.io/badge/Node-20.x-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Kotlin](https://img.shields.io/badge/Kotlin-1.9-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
 
 ---
 
-**Built with privacy, ethics, and user empowerment at the core.**
+## Paper
+
+**Title:** *SendWise: Privacy-Preserving Parental Awareness of Adolescent Cyberbullying Risk through On-Device Pre-Send Intervention*
+
+**DOI:** `10.XXXX/XXXXXXX` *(placeholder — to be assigned on acceptance)*
+
+If you use SendWise in academic work, please [cite the paper](#citation).
+
+---
+
+## Architecture
+
+```mermaid
+flowchart LR
+    A[Android IME<br/>SafeKeyboard] -- on-device<br/>RF inference --> A
+    A -- TLS 1.3<br/>+ cert pinning<br/>metadata only --> B[Vercel API<br/>Next.js 14]
+    B <--> C[(Redis<br/>Upstash KV)]
+    B -- authenticated<br/>session --> D[Parent Dashboard<br/>Next.js UI]
+    style A fill:#e8f4f8,stroke:#0369a1
+    style B fill:#fef3c7,stroke:#a16207
+    style C fill:#fce7f3,stroke:#be185d
+    style D fill:#dcfce7,stroke:#15803d
+```
+
+**Data flow guarantee:** message *content* stays on the device. Only anonymised violation metadata (category, severity, timestamp, salted user hash) crosses the network.
+
+---
+
+## Components
+
+### Mobile App — [`SafeKeyboardApp/`](SafeKeyboardApp/)
+Android IME (Input Method Editor) with an on-device Random Forest classifier that intercepts risky messages *before* Send is pressed.
+- Kotlin 1.9, Android SDK 26–34
+- Build via **GitHub Actions** (no local Android Studio required) — see [`BUILD_APK.md`](BUILD_APK.md)
+- Install on device — see [`INSTALL_ON_REDMI.md`](INSTALL_ON_REDMI.md)
+
+### Parental Dashboard — [`parental-dashboard/`](parental-dashboard/)
+Next.js 14 web dashboard for parents; shows anonymised risk trends per paired device.
+- Next.js 14 (App Router), NextAuth, Tailwind
+- Deploys to **Vercel** free tier — see [`VERCEL_DEPLOY.md`](VERCEL_DEPLOY.md)
+
+### Model Training — [`model_training/`](model_training/)
+Python pipeline that trains the Random Forest classifier shipped inside the APK.
+- Python 3.12.7 + scikit-learn 1.5.2
+- Reproduces paper metrics — see [`model_training/MODEL_TRAINING.md`](model_training/MODEL_TRAINING.md)
+
+---
+
+## Reproducibility
+
+Metrics reported in the paper (Random Forest, `sendwise_dataset.csv`, 20,122 rows, 80/20 stratified split):
+
+| Metric | Value |
+| --- | --- |
+| Precision | **85.96** |
+| Recall | **95.73** |
+| F1 | **90.58** |
+
+Retraining is deterministic (fixed `random_state=42`); see [`model_training/MODEL_TRAINING.md`](model_training/MODEL_TRAINING.md) for the exact environment and command.
+
+---
+
+## Privacy Guarantees
+
+> [!IMPORTANT]
+> **Message content never leaves the device.** The on-device classifier runs in the IME process; only anonymised metadata is transmitted.
+
+- ✅ Inference is fully on-device (Random Forest in `assets/models/sendwise_rf_v1.json.gz`)
+- ✅ Network payload contains only: `{salted_user_hash, category, severity, action, timestamp}`
+- ✅ TLS 1.3 with certificate pinning between IME and API
+- ✅ User identifier is `SHA-256(AndroidID ‖ AppSalt)` — one-way, non-reversible
+- ✅ No message text, no recipient identity, no cross-platform tracking
+- ✅ Parent dashboard shows aggregate counts, never message excerpts
+
+---
+
+## Quick Links
+
+| Task | Document |
+| --- | --- |
+| Deploy dashboard to Vercel | [`VERCEL_DEPLOY.md`](VERCEL_DEPLOY.md) |
+| Get the APK (no local build) | [`BUILD_APK.md`](BUILD_APK.md) |
+| Install on a Redmi Note 7 Pro | [`INSTALL_ON_REDMI.md`](INSTALL_ON_REDMI.md) |
+| Retrain the classifier | [`model_training/MODEL_TRAINING.md`](model_training/MODEL_TRAINING.md) |
+
+---
+
+## License
+
+Released under the [MIT License](https://opensource.org/licenses/MIT).
+
+## Citation
+
+```bibtex
+@article{ganesan2026sendwise,
+  title   = {SendWise: Privacy-Preserving Parental Awareness of Adolescent
+             Cyberbullying Risk through On-Device Pre-Send Intervention},
+  author  = {Ganesan, Namrata and collaborators},
+  journal = {(under review)},
+  year    = {2026},
+  doi     = {10.XXXX/XXXXXXX}
+}
+```
+
+## Authors
+
+- **Namrata Ganesan** — principal investigator, system design, model training
+- Collaborators listed in the paper
+
+---
+
+<sub>Built with privacy, ethics, and user empowerment at the core.</sub>

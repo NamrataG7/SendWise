@@ -14,11 +14,64 @@ from the Android IME (never message content) and serves aggregated insights.
 
 ### Environment Variables
 
-| Variable    | Required | Description                                                                 |
-|-------------|----------|-----------------------------------------------------------------------------|
-| `REDIS_URL` | No*      | Redis connection string. If unset, falls back to an in-memory stub (dev).   |
+| Variable               | Required | Description                                                                 |
+|------------------------|----------|-----------------------------------------------------------------------------|
+| `REDIS_URL`            | No*      | Redis connection string. If unset, falls back to an in-memory stub (dev).   |
+| `NEXTAUTH_SECRET`      | Yes      | Random secret for NextAuth JWT signing. Generate: `openssl rand -base64 32`.|
+| `NEXTAUTH_URL`         | Yes      | Public base URL of the dashboard (e.g. `http://localhost:3000`).            |
+| `PARENT_EMAIL`         | Yes      | The single parent account email (case-insensitive at login).                |
+| `PARENT_PASSWORD_HASH` | Yes      | bcrypt hash of the parent password.                                         |
 
 \*Required in production. Use Vercel KV or Upstash Redis. See `.env.example`.
+
+---
+
+## 🔐 Authentication
+
+The dashboard uses **NextAuth (Credentials provider)** with a single env-based
+parent account. Session strategy is **JWT with a 24-hour max age**.
+
+### Setup
+
+1. Choose a password and generate a bcrypt hash:
+   ```bash
+   node -e "console.log(require('bcryptjs').hashSync('yourpassword', 10))"
+   ```
+2. Populate `.env.local`:
+   ```
+   NEXTAUTH_SECRET=$(openssl rand -base64 32)
+   NEXTAUTH_URL=http://localhost:3000
+   PARENT_EMAIL=parent@example.com
+   PARENT_PASSWORD_HASH='<paste bcrypt hash here>'
+   ```
+3. Start the dashboard and visit `/login`.
+
+### Protected routes
+
+Middleware (`middleware.ts`) enforces auth on:
+
+- `/` (incident feed)
+- `/insights/*`
+- `/pair`
+- `GET /api/violations/*`
+- `GET /api/insights/*`
+
+Unauthenticated requests to pages are redirected to `/login?callbackUrl=…`.
+API requests receive `401 { error: "Unauthorized" }`.
+
+### Always public
+
+- `/login`, `/privacy`, `/terms`
+- `/api/auth/*` (NextAuth endpoints)
+- `/api/pairing/generate` and `/api/pairing/redeem`
+- `POST /api/violations` — device → server ingest, unauthenticated by design
+  (protected by the payload privacy guard, not by user auth)
+
+### Pairing a child device
+
+Once signed in, visit `/pair`, enter the 6-digit code shown in the SendWise
+keyboard on the child device, and optionally give the child a display name.
+The redeem call uses the signed-in parent's email as `parent_id`.
 
 ### Endpoints
 

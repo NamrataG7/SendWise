@@ -19,7 +19,6 @@ export const sampleIncidents: Incident[] = [
     platform: 'instagram',
     category: 'self_harm',
     severity: 'urgent',
-    detectedText: 'Expression of immediate danger',
     action: 'edited',
     detections: [
       {
@@ -41,7 +40,6 @@ export const sampleIncidents: Incident[] = [
     platform: 'whatsapp',
     category: 'privacy_risk',
     severity: 'critical',
-    detectedText: 'Shared phone number: 555-***-1234',
     action: 'sent_anyway',
     detections: [
       {
@@ -63,7 +61,6 @@ export const sampleIncidents: Incident[] = [
     platform: 'discord',
     category: 'meeting_stranger',
     severity: 'critical',
-    detectedText: 'Agreement to meet: "ok let\'s meet at the mall"',
     action: 'blocked',
     detections: [
       {
@@ -90,7 +87,6 @@ export const sampleIncidents: Incident[] = [
     platform: 'snapchat',
     category: 'risky_behavior',
     severity: 'high',
-    detectedText: 'Discussion of substance use',
     action: 'edited',
     detections: [
       {
@@ -113,7 +109,6 @@ export const sampleIncidents: Incident[] = [
     platform: 'tiktok',
     category: 'cyberbullying',
     severity: 'medium',
-    detectedText: 'Mean comment toward another user',
     action: 'sent_anyway',
     detections: [
       {
@@ -131,7 +126,6 @@ export const sampleIncidents: Incident[] = [
     platform: 'instagram',
     category: 'self_harm',
     severity: 'high',
-    detectedText: 'Expression of depression',
     action: 'edited',
     detections: [
       {
@@ -153,7 +147,6 @@ export const sampleIncidents: Incident[] = [
     platform: 'discord',
     category: 'privacy_risk',
     severity: 'high',
-    detectedText: 'Shared email address',
     action: 'sent_anyway',
     detections: [
       {
@@ -174,7 +167,6 @@ export const sampleIncidents: Incident[] = [
     platform: 'whatsapp',
     category: 'meeting_stranger',
     severity: 'high',
-    detectedText: 'Time arrangement: "see you tomorrow"',
     action: 'blocked',
     detections: [
       {

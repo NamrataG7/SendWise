@@ -11,9 +11,10 @@ import {
   Dot,
 } from 'recharts';
 import { getInterventionTrend } from '@/lib/insights-aggregates';
+import type { TrendPoint } from '@/lib/insights-aggregates';
 
-export default function InterventionTrendCard() {
-  const data = getInterventionTrend();
+export default function InterventionTrendCard({ data }: { data?: TrendPoint[] } = {}) {
+  const chartData = data ?? getInterventionTrend();
 
   return (
     <div className="bg-white rounded-2xl border border-[#ECEEF3] shadow-sm p-6">
@@ -23,7 +24,7 @@ export default function InterventionTrendCard() {
       <div className="h-[320px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
-            data={data}
+            data={chartData}
             margin={{ top: 12, right: 16, left: 0, bottom: 8 }}
           >
             <defs>

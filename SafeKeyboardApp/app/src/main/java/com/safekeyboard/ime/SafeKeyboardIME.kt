@@ -99,10 +99,41 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
         sendIntentDetector.updateAppContext(currentAppPackage)
     }
 
+    /**
+     * Last-chance intervention hook (paper Fig 2).
+     *
+     * When the editor loses focus (user is switching away — often right after tapping Send),
+     * run one final synchronous analysis on the current buffer. If risk >= 0.5 and no
+     * overlay is already showing, surface the warning overlay before it's too late.
+     *
+     * Buffer is always cleared after handling so nothing leaks across editors.
+     */
     override fun onFinishInput() {
         super.onFinishInput()
-        // Clear buffer when input is finished
-        messageBuffer.clear()
+        try {
+            if (preferencesManager.isModerationEnabled() &&
+                !messageBuffer.isEmpty() &&
+                !overlayManager.isOverlayShowing()
+            ) {
+                val message = messageBuffer.getCurrentMessage()
+                if (message.isNotEmpty()) {
+                    val platform = getPlatformFromPackage(currentAppPackage)
+                    val result = enhancedAnalyzer.analyzeMessage(
+                        message = message,
+                        sensitivity = preferencesManager.getSensitivityThreshold().toDouble(),
+                        platform = platform
+                    )
+                    if (result.toxicityScore >= 0.5f) {
+                        showWarningPopup(result)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // Fail open — never block the user because of an analysis error.
+            e.printStackTrace()
+        } finally {
+            messageBuffer.clear()
+        }
     }
 
     override fun onUpdateSelection(
@@ -195,10 +226,37 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
         // Enter key pressed - strong signal of intent to send
         sendIntentDetector.recordEnterKeyPress()
 
+        // Paper Algorithm 1, step 1: immediate synchronous analysis on Enter/Send
+        // in a social/communication context. If risky, consume the key event and
+        // show the warning overlay. Only proceed with send if the user taps Continue.
+        if (preferencesManager.isModerationEnabled() &&
+            sendIntentDetector.isSocialCommunicationApp() &&
+            !overlayManager.isOverlayShowing()
+        ) {
+            val message = messageBuffer.getCurrentMessage()
+            if (message.isNotEmpty()) {
+                try {
+                    val result = enhancedAnalyzer.analyzeMessage(
+                        message = message,
+                        sensitivity = preferencesManager.getSensitivityThreshold().toDouble(),
+                        platform = getPlatformFromPackage(currentAppPackage)
+                    )
+                    if (result.toxicityScore >= 0.5f) {
+                        // Consume the Enter key: do NOT forward to the host app.
+                        showWarningPopup(result)
+                        return
+                    }
+                } catch (e: Exception) {
+                    // Fail open
+                    e.printStackTrace()
+                }
+            }
+        }
+
         ic.sendKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_ENTER))
         ic.sendKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_ENTER))
 
-        // Immediate send intent check
+        // Immediate send intent check (async delayed-pause path, kept for parity)
         checkSendIntentAsync()
     }
 

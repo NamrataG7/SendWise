@@ -1,4 +1,9 @@
 import Link from 'next/link';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { getChildrenForParent } from '@/lib/parent-store';
+import { computeInsightsAggregate } from '@/lib/insights-server';
+import { emptyInsights, payloadToChartData } from '@/lib/insights-aggregates';
 import InsightsGrid from '@/components/insights/InsightsGrid';
 
 export const metadata = {
@@ -7,7 +12,20 @@ export const metadata = {
     'Aggregated behavioral risk indicators from the SendWise parental dashboard.',
 };
 
-export default function InsightsPage() {
+// Server-rendered on every request — reflects the latest linked children
+// and violation writes without a client round-trip.
+export const dynamic = 'force-dynamic';
+
+export default async function InsightsPage() {
+  const session = await getServerSession(authOptions);
+  const parentEmail = session?.user?.email ?? '';
+  const children = parentEmail ? await getChildrenForParent(parentEmail) : [];
+
+  const hasChildren = children.length > 0;
+  const chartData = hasChildren
+    ? payloadToChartData(await computeInsightsAggregate(children))
+    : emptyInsights();
+
   return (
     <div className="bg-[#F7F8FB] min-h-screen text-[#101532]">
       {/* Header bar */}
@@ -45,7 +63,35 @@ export default function InsightsPage() {
           </p>
         </div>
 
-        <InsightsGrid />
+        {!hasChildren && (
+          <div
+            role="status"
+            className="mb-6 rounded-2xl border border-[#ECEEF3] bg-white px-6 py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+          >
+            <div>
+              <div className="text-[16px] font-semibold text-[#101532]">
+                No devices linked yet
+              </div>
+              <p className="text-[14px] text-[#6B7280] mt-1">
+                Link a child device to start seeing real behavioral insights.
+                Until then, the charts below show zeros.
+              </p>
+            </div>
+            <Link
+              href="/pair"
+              className="inline-flex items-center justify-center rounded-lg bg-[#6C3FE1] text-white text-[14px] font-medium px-4 py-2 hover:bg-[#5A32C4]"
+            >
+              Link a device
+            </Link>
+          </div>
+        )}
+
+        <InsightsGrid
+          trend={chartData.trend}
+          categoryDistribution={chartData.categoryDistribution}
+          severityDistribution={chartData.severityDistribution}
+          editedVsSent={chartData.editedVsSent}
+        />
 
         <p className="text-[12px] text-[#6B7280] mt-8">
           Aggregated indicators only. No message content is shown or stored on

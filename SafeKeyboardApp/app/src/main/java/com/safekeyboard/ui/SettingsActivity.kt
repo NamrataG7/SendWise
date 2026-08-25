@@ -1,6 +1,7 @@
 package com.safekeyboard.ui
 
 import android.os.Bundle
+import android.content.Intent
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -78,6 +79,13 @@ class SettingsActivity : AppCompatActivity() {
             val resetCounters = findPreference<Preference>("reset_counters")
             resetCounters?.setOnPreferenceClickListener {
                 showResetConfirmation()
+                true
+            }
+
+            // Parental Link -> opens PairingActivity
+            val parentalLink = findPreference<Preference>("parental_link")
+            parentalLink?.setOnPreferenceClickListener {
+                startActivity(Intent(requireContext(), PairingActivity::class.java))
                 true
             }
 

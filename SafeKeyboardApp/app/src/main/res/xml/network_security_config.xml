@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Network Security Config for SafeKeyboard.
+
+  Policy:
+    - Production API domain (sendwise.vercel.app): HTTPS only, cleartext
+      denied, optional certificate pinning (SPKI SHA-256). The pin below
+      is a placeholder — replace it after Vercel deploy. See
+      SafeKeyboardApp/CERT_PINNING.md for how to generate it.
+    - Loopback / emulator (localhost, 127.0.0.1, 10.0.2.2): cleartext
+      permitted for local development only.
+    - Everything else: inherits base-config (no cleartext).
+-->
+<network-security-config>
+
+    <!-- Production API: HTTPS only + pinning -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">sendwise.vercel.app</domain>
+        <!--
+          Optional certificate pinning. Mirrors the OkHttp CertificatePinner
+          in RetrofitClient.kt. Replace the placeholder with the real
+          base64 SPKI SHA-256 after Vercel deploy.
+
+          NOTE: Vercel rotates edge certificates. Consider pinning the
+          issuing CA's SPKI instead of the leaf. See CERT_PINNING.md.
+        -->
+        <pin-set expiration="2026-12-31">
+            <pin digest="SHA-256">PLACEHOLDER_UPDATE_AFTER_DEPLOY</pin>
+        </pin-set>
+    </domain-config>
+
+    <!-- Local dev loopback (Android emulator host = 10.0.2.2) -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain>
+    </domain-config>
+
+    <!-- Default: no cleartext anywhere else -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+</network-security-config>

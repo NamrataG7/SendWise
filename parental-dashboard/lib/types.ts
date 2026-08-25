@@ -35,7 +35,9 @@ export interface Incident {
   platform: Platform;
   category: IncidentCategory;
   severity: SeverityLevel;
-  detectedText: string; // Partial/sanitized text shown to parent
+  // Privacy guarantee (SendWise paper §Privacy by Design):
+  // Message content is analyzed on-device only and NEVER leaves the child's device.
+  // Therefore no `detectedText` / message-content field exists on Incident.
   action: ActionTaken;
   detections: {
     type: string;

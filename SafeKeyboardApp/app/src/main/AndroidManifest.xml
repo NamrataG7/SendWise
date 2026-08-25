@@ -12,6 +12,7 @@
         android:icon="@drawable/ic_launcher"
         android:label="@string/app_name"
         android:theme="@style/Theme.SafeKeyboard"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:usesCleartextTraffic="false"
         tools:targetApi="31">
 
@@ -31,6 +32,12 @@
             android:name=".ui.SettingsActivity"
             android:exported="false"
             android:label="@string/settings" />
+
+        <!-- Parental-link pairing activity -->
+        <activity
+            android:name=".ui.PairingActivity"
+            android:exported="false"
+            android:label="@string/pairing_title" />
 
         <!-- IME Service - This is the core keyboard service -->
         <service
