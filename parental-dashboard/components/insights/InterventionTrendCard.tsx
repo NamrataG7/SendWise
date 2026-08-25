@@ -10,21 +10,20 @@ import {
   ResponsiveContainer,
   Dot,
 } from 'recharts';
-import { getInterventionTrend } from '@/lib/insights-aggregates';
 import type { TrendPoint } from '@/lib/insights-aggregates';
 
-export default function InterventionTrendCard({ data }: { data?: TrendPoint[] } = {}) {
-  const chartData = data ?? getInterventionTrend();
+export default function InterventionTrendCard({ data }: { data: TrendPoint[] }) {
+  const hasData = data.some((p) => p.interventions > 0);
 
   return (
     <div className="bg-white rounded-2xl border border-[#ECEEF3] shadow-sm p-6">
       <h3 className="text-[18px] font-bold text-[#101532] mb-4">
         30-Day Intervention Trend
       </h3>
-      <div className="h-[320px] w-full">
+      <div className="h-[320px] w-full relative">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
-            data={chartData}
+            data={data}
             margin={{ top: 12, right: 16, left: 0, bottom: 8 }}
           >
             <defs>
@@ -81,6 +80,16 @@ export default function InterventionTrendCard({ data }: { data?: TrendPoint[] } 
             />
           </AreaChart>
         </ResponsiveContainer>
+        {!hasData && (
+          <div
+            className="absolute inset-0 flex items-center justify-center pointer-events-none"
+            aria-hidden="true"
+          >
+            <span className="text-[13px] font-medium text-[#6B7280] bg-white/70 px-3 py-1 rounded">
+              No data yet
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

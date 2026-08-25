@@ -24,23 +24,29 @@ export default function PairPage() {
       return
     }
 
-    const parentId = session?.user?.email
-    if (!parentId) {
+    if (!session?.user?.email) {
       setError('Not signed in.')
       return
     }
 
     setLoading(true)
     try {
+      // parent_id is derived server-side from the session — do NOT send it
+      // in the body. The redeem route rejects any body containing parent_id.
       const res = await fetch('/api/pairing/redeem', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           code: cleanCode,
-          parent_id: parentId,
           ...(childName.trim() ? { child_name: childName.trim() } : {}),
         }),
       })
+
+      if (res.status === 401) {
+        // Session was lost between page load and submit — bounce to login.
+        router.push(`/login?callbackUrl=${encodeURIComponent('/pair')}`)
+        return
+      }
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))

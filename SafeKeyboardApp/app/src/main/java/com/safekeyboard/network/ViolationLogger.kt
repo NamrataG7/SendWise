@@ -44,32 +44,32 @@ class ViolationLogger(private val context: Context) {
         private const val MAX_RETRY_ATTEMPTS = 3
         private const val INITIAL_BACKOFF_MS = 500L
 
-        // Internal analyzer category -> API IncidentCategory enum.
-        // Existing analyzers (ToxicityAnalyzer / EnhancedToxicityAnalyzer) emit:
-        //   "harassment", "hate", "threat", "sexual", "bullying", "none"
-        // The dashboard schema only permits 5 values; map as follows:
-        private val CATEGORY_MAP: Map<String, String> = mapOf(
-            "harassment"       to "cyberbullying",
-            "bullying"         to "cyberbullying",
-            "cyberbullying"    to "cyberbullying",
-            "hate"             to "cyberbullying",
-            "threat"           to "risky_behavior",
-            "sexual"           to "risky_behavior",
-            "self_harm"        to "self_harm",
-            "selfharm"         to "self_harm",
-            "privacy"          to "privacy_risk",
-            "privacy_risk"     to "privacy_risk",
-            "stranger"         to "meeting_stranger",
-            "meeting_stranger" to "meeting_stranger",
-            "risky"            to "risky_behavior",
-            "risky_behavior"   to "risky_behavior"
+        // Canonical 5 risk categories accepted by the API
+        // (mirrors parental-dashboard/lib/schema.ts IncidentCategoryEnum).
+        val CANONICAL_CATEGORIES: Set<String> = setOf(
+            "harassment",
+            "threats",
+            "hate_speech",
+            "sexual_content",
+            "self_harm"
         )
 
-        private const val DEFAULT_CATEGORY = "cyberbullying"
+        // Safety-net fallback when analyzer emits an unknown / legacy value.
+        // Analyzers now emit canonical names directly, so this is only a
+        // defense-in-depth guard against future drift.
+        private const val DEFAULT_CATEGORY = "harassment"
 
+        /**
+         * Pass-through identity mapping to the API's canonical taxonomy.
+         *
+         * The on-device analyzers (ToxicityAnalyzer / EnhancedToxicityAnalyzer)
+         * emit one of the 5 canonical category strings directly. If a value
+         * outside the canonical set is ever received, we fall back to
+         * [DEFAULT_CATEGORY] so the ingest still succeeds schema validation.
+         */
         fun mapCategory(internal: String): String {
             val key = internal.trim().lowercase()
-            return CATEGORY_MAP[key] ?: DEFAULT_CATEGORY
+            return if (key in CANONICAL_CATEGORIES) key else DEFAULT_CATEGORY
         }
 
         fun normalizeSeverity(severity: String): String {

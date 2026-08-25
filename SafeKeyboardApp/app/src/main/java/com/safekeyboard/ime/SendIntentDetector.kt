@@ -132,7 +132,7 @@ class SendIntentDetector {
 
     /**
      * Checks if the current app is a social/gaming/communication app
-     * where cyberbullying interventions are appropriate.
+     * where pre-send interventions are appropriate.
      *
      * Returns true for: Social media DMs, gaming app chats, YouTube comments
      * Returns false for: Productivity apps (Google Docs, Word, Notes, Search)

@@ -293,10 +293,11 @@ Legend is easier to hand-build with a small flex list next to each `PieChart` (R
 | `severity.high` | `#E5484D` |
 | `severity.medium` | `#F59B2A` |
 | `severity.low` | `#2AAE6B` |
-| `category.harassment` / `cyberbullying` | `#7C5CD6` |
-| `category.self_harm` | `#E5484D` |
-| `category.stranger_contact` | `#F59B2A` |
-| `category.privacy` | `#2F6BFF` |
+| `category.harassment` | `#7C5CD6` |
+| `category.threats` | `#F59B2A` |
+| `category.hate_speech` | `#2F6BFF` |
+| `category.sexual_content` | `#E5484D` |
+| `category.self_harm` | `#B08CFF` |
 | `surface.page` | `#F7F8FB` |
 | `surface.card` | `#FFFFFF` |
 | `border.hairline` | `#ECEEF3` |

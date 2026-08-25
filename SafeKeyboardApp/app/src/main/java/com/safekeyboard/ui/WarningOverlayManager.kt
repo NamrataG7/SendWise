@@ -36,6 +36,17 @@ class WarningOverlayManager(private val context: Context) {
     // Callback for user decision
     var onUserDecision: ((sendAnyway: Boolean) -> Unit)? = null
 
+    // Callback invoked when the overlay is dismissed without a user decision
+    // (e.g. IME finished, service destroyed, tap outside). Used to log
+    // action="cancelled" so the Fig 3 "Edited vs Sent Unchanged" donut has
+    // an accurate denominator.
+    var onDismissedWithoutDecision: (() -> Unit)? = null
+
+    // Tracks whether the current warning was resolved by an explicit user tap
+    // (Edit or Continue). If false when cleanup()/dismissOverlay() runs, we
+    // treat it as a cancellation.
+    private var userMadeDecision = false
+
     // Store current analysis result for logging
     var currentAnalysisResult: ToxicityAnalyzer.AnalysisResult? = null
 
@@ -60,6 +71,9 @@ class WarningOverlayManager(private val context: Context) {
         }
 
         if (isShowing) return
+
+        // Reset decision tracker for this new warning cycle
+        userMadeDecision = false
 
         val inflater = LayoutInflater.from(context)
         overlayView = inflater.inflate(R.layout.warning_overlay, null)
@@ -120,12 +134,14 @@ class WarningOverlayManager(private val context: Context) {
 
             // Edit Message (outlined) - dismiss, no send
             view.findViewById<View>(R.id.button_edit).setOnClickListener {
+                userMadeDecision = true
                 dismissOverlay()
                 onUserDecision?.invoke(false)
             }
 
             // Continue / Send Anyway (filled) - allow send
             view.findViewById<View>(R.id.button_send_anyway).setOnClickListener {
+                userMadeDecision = true
                 dismissOverlay()
                 onUserDecision?.invoke(true)
             }
@@ -153,9 +169,22 @@ class WarningOverlayManager(private val context: Context) {
     }
 
     fun cleanup() {
+        // If the overlay was up and the user never explicitly chose Edit or
+        // Continue, treat this as a cancellation so ViolationLogger can log
+        // action="cancelled".
+        val wasShowingWithoutDecision = isShowing && !userMadeDecision
         dismissOverlay()
+        if (wasShowingWithoutDecision) {
+            try {
+                onDismissedWithoutDecision?.invoke()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
         onUserDecision = null
+        onDismissedWithoutDecision = null
         currentAnalysisResult = null
+        userMadeDecision = false
     }
 
     fun isOverlayShowing(): Boolean = isShowing

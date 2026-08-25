@@ -145,7 +145,9 @@
         riskScore: riskScore,
         severity: severity,
         detections: detections,
-        category: 'meeting_stranger',
+        // Auxiliary detector — does not map to the canonical 5-category
+        // taxonomy (harassment/threats/hate_speech/sexual_content/self_harm).
+        category: 'none',
         requiresImmediateAction: riskScore >= 0.9
       };
     },

@@ -6,11 +6,11 @@ interface CategoryFilterProps {
 }
 
 const categories: { value: IncidentCategory; label: string; icon: string; color: string }[] = [
-  { value: 'self_harm', label: 'Self-Harm', icon: '🚨', color: 'bg-red-100 text-red-700 border-red-300' },
-  { value: 'privacy_risk', label: 'Privacy', icon: '🔒', color: 'bg-purple-100 text-purple-700 border-purple-300' },
-  { value: 'meeting_stranger', label: 'Meetings', icon: '👤', color: 'bg-orange-100 text-orange-700 border-orange-300' },
-  { value: 'risky_behavior', label: 'Risky Behavior', icon: '⚠️', color: 'bg-yellow-100 text-yellow-700 border-yellow-300' },
-  { value: 'cyberbullying', label: 'Cyberbullying', icon: '🛡️', color: 'bg-blue-100 text-blue-700 border-blue-300' },
+  { value: 'harassment', label: 'Harassment', icon: '🛡️', color: 'bg-blue-100 text-blue-700 border-blue-300' },
+  { value: 'threats', label: 'Threats', icon: '⚠️', color: 'bg-orange-100 text-orange-700 border-orange-300' },
+  { value: 'hate_speech', label: 'Hate Speech', icon: '🚫', color: 'bg-purple-100 text-purple-700 border-purple-300' },
+  { value: 'sexual_content', label: 'Sexual Content', icon: '🔞', color: 'bg-pink-100 text-pink-700 border-pink-300' },
+  { value: 'self_harm', label: 'Self-Harm Risk', icon: '🚨', color: 'bg-red-100 text-red-700 border-red-300' },
 ];
 
 export default function CategoryFilter({ selectedCategories, onCategoryToggle }: CategoryFilterProps) {

@@ -1,6 +1,9 @@
 /**
  * Sample data for SendWise Parental Dashboard
- * For testing and demonstration purposes
+ * For testing and demonstration purposes.
+ *
+ * Categories reflect the paper's canonical 5:
+ *   harassment | threats | hate_speech | sexual_content | self_harm
  */
 
 import { Incident, Child, DashboardStats, CategoryStats } from './types';
@@ -38,20 +41,20 @@ export const sampleIncidents: Incident[] = [
     childId: 'child-001',
     timestamp: new Date('2026-01-28T14:15:00'),
     platform: 'whatsapp',
-    category: 'privacy_risk',
+    category: 'harassment',
     severity: 'critical',
     action: 'sent_anyway',
     detections: [
       {
-        type: 'phone_number',
-        matches: ['phone number pattern']
+        type: 'insulting_language',
+        matches: ['name-calling pattern']
       }
     ],
-    recommendation: '🚨 CRITICAL: Talk to child about online privacy immediately',
+    recommendation: '🚨 CRITICAL: Talk to child about respectful communication',
     resources: [
-      'Discuss never sharing personal information with strangers',
-      'Review all recent conversations',
-      'Set clear privacy rules'
+      'Discuss impact of harassing messages',
+      'Review recent conversations',
+      'Set clear expectations about kindness online'
     ]
   },
   {
@@ -59,25 +62,25 @@ export const sampleIncidents: Incident[] = [
     childId: 'child-001',
     timestamp: new Date('2026-01-28T13:30:00'),
     platform: 'discord',
-    category: 'meeting_stranger',
+    category: 'threats',
     severity: 'critical',
     action: 'blocked',
     detections: [
       {
-        type: 'meeting_agreement',
-        matches: ['agreement to meet']
+        type: 'violent_threat',
+        matches: ['explicit threat of harm']
       },
       {
-        type: 'location_sharing',
-        matches: ['specific location mentioned']
+        type: 'intent_pattern',
+        matches: ['"I will ___ you" construction']
       }
     ],
-    recommendation: '🚨 CRITICAL: Child planning to meet stranger - intervene immediately',
+    recommendation: '🚨 CRITICAL: Threatening language detected - intervene immediately',
     resources: [
       'Talk to child IMMEDIATELY',
-      'Ask who they\'re talking to online',
+      'Understand the conflict driving the threat',
       'Review all recent messages',
-      'Consider reporting to CyberTipline (NCMEC): 1-800-843-5678'
+      'Consider reporting to platform trust & safety'
     ]
   },
   {
@@ -85,21 +88,21 @@ export const sampleIncidents: Incident[] = [
     childId: 'child-001',
     timestamp: new Date('2026-01-28T12:00:00'),
     platform: 'snapchat',
-    category: 'risky_behavior',
+    category: 'sexual_content',
     severity: 'high',
     action: 'edited',
     detections: [
       {
-        type: 'drugs',
-        matches: ['substance reference']
+        type: 'sexual_solicitation',
+        matches: ['explicit sexual reference']
       }
     ],
-    recommendation: '⚠️ HIGH: Substance use detected - intervention needed',
+    recommendation: '⚠️ HIGH: Sexual content detected - conversation needed',
     resources: [
-      'Have a serious conversation about substance abuse',
-      'Consider drug/alcohol counseling',
-      'Discuss legal consequences',
-      'Monitor social circles'
+      'Have an age-appropriate conversation about sexual content online',
+      'Discuss consent and boundaries',
+      'Review who they are messaging',
+      'Consider reporting to CyberTipline (NCMEC): 1-800-843-5678'
     ]
   },
   {
@@ -107,7 +110,7 @@ export const sampleIncidents: Incident[] = [
     childId: 'child-001',
     timestamp: new Date('2026-01-28T10:30:00'),
     platform: 'tiktok',
-    category: 'cyberbullying',
+    category: 'harassment',
     severity: 'medium',
     action: 'sent_anyway',
     detections: [
@@ -145,19 +148,19 @@ export const sampleIncidents: Incident[] = [
     childId: 'child-001',
     timestamp: new Date('2026-01-27T18:45:00'),
     platform: 'discord',
-    category: 'privacy_risk',
+    category: 'hate_speech',
     severity: 'high',
     action: 'sent_anyway',
     detections: [
       {
-        type: 'email',
-        matches: ['email pattern']
+        type: 'slur',
+        matches: ['discriminatory term']
       }
     ],
-    recommendation: '⚠️ HIGH: Child sharing personal contact information',
+    recommendation: '⚠️ HIGH: Hate speech detected - address immediately',
     resources: [
-      'Discuss email privacy',
-      'Review online safety rules'
+      'Discuss the harm of slurs and discriminatory language',
+      'Review online safety and community rules'
     ]
   },
   {
@@ -165,19 +168,19 @@ export const sampleIncidents: Incident[] = [
     childId: 'child-001',
     timestamp: new Date('2026-01-27T16:20:00'),
     platform: 'whatsapp',
-    category: 'meeting_stranger',
+    category: 'threats',
     severity: 'high',
     action: 'blocked',
     detections: [
       {
-        type: 'time_arrangement',
-        matches: ['temporal coordination']
+        type: 'intimidation',
+        matches: ['coercive language']
       }
     ],
-    recommendation: '⚠️ CONCERN: Child agreeing to meet someone',
+    recommendation: '⚠️ CONCERN: Intimidating language toward another user',
     resources: [
-      'Talk to child about who they\'re meeting',
-      'Verify it\'s a known, safe person'
+      'Talk to child about the situation',
+      'Understand who the message was directed at'
     ]
   }
 ];
@@ -192,33 +195,33 @@ export const sampleStats: DashboardStats = {
 
 export const sampleCategoryStats: CategoryStats[] = [
   {
-    category: 'self_harm',
-    count: 2,
-    trend: 'up',
-    mostRecentSeverity: 'urgent'
+    category: 'harassment',
+    count: 18,
+    trend: 'down',
+    mostRecentSeverity: 'medium'
   },
   {
-    category: 'privacy_risk',
-    count: 3,
+    category: 'threats',
+    count: 8,
     trend: 'stable',
     mostRecentSeverity: 'critical'
   },
   {
-    category: 'meeting_stranger',
-    count: 2,
-    trend: 'up',
-    mostRecentSeverity: 'critical'
-  },
-  {
-    category: 'risky_behavior',
-    count: 1,
+    category: 'hate_speech',
+    count: 6,
     trend: 'down',
     mostRecentSeverity: 'high'
   },
   {
-    category: 'cyberbullying',
-    count: 42,
-    trend: 'down',
-    mostRecentSeverity: 'medium'
+    category: 'sexual_content',
+    count: 4,
+    trend: 'up',
+    mostRecentSeverity: 'high'
+  },
+  {
+    category: 'self_harm',
+    count: 2,
+    trend: 'up',
+    mostRecentSeverity: 'urgent'
   }
 ];

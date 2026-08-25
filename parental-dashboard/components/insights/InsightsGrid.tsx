@@ -7,24 +7,26 @@ import EditedVsSentCard from './EditedVsSentCard';
 import type { TrendPoint, DonutSlice } from '@/lib/insights-aggregates';
 
 export interface InsightsGridProps {
-  trend?: TrendPoint[];
-  categoryDistribution?: DonutSlice[];
-  severityDistribution?: DonutSlice[];
-  editedVsSent?: DonutSlice[];
+  total: number;
+  trend: TrendPoint[];
+  categoryDistribution: DonutSlice[];
+  severityDistribution: DonutSlice[];
+  editedVsSent: DonutSlice[];
 }
 
 export default function InsightsGrid({
+  total,
   trend,
   categoryDistribution,
   severityDistribution,
   editedVsSent,
-}: InsightsGridProps = {}) {
+}: InsightsGridProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       <InterventionTrendCard data={trend} />
-      <CategoryDistributionCard slices={categoryDistribution} />
-      <SeverityDistributionCard slices={severityDistribution} />
-      <EditedVsSentCard slices={editedVsSent} />
+      <CategoryDistributionCard slices={categoryDistribution} total={total} />
+      <SeverityDistributionCard slices={severityDistribution} total={total} />
+      <EditedVsSentCard slices={editedVsSent} total={total} />
     </div>
   );
 }

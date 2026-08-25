@@ -1,11 +1,12 @@
 'use client';
 
 import { PieChart, Pie, Cell, ResponsiveContainer, LabelProps } from 'recharts';
-import { DonutSlice, TOTAL_INTERVENTIONS } from '@/lib/insights-aggregates';
+import type { DonutSlice } from '@/lib/insights-aggregates';
 
 interface DonutCardProps {
   title: string;
   slices: DonutSlice[];
+  total: number;
   showTotal?: boolean;
 }
 
@@ -27,6 +28,7 @@ function renderSliceLabel(props: SliceLabelProps): React.ReactNode {
     outerRadius = 0,
     value = 0,
   } = props;
+  if (!value || value <= 0) return null;
   const RADIAN = Math.PI / 180;
   const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
   const x = cx + radius * Math.cos(-midAngle * RADIAN);
@@ -46,17 +48,31 @@ function renderSliceLabel(props: SliceLabelProps): React.ReactNode {
   );
 }
 
-export default function DonutCard({ title, slices, showTotal = true }: DonutCardProps) {
+export default function DonutCard({
+  title,
+  slices,
+  total,
+  showTotal = true,
+}: DonutCardProps) {
+  const sumValues = slices.reduce((a, s) => a + (s.value ?? 0), 0);
+  const isEmpty = sumValues <= 0;
+
+  // For empty state, render a single gray disk so the donut shape is preserved.
+  const emptySlices: DonutSlice[] = [
+    { name: 'No data', value: 1, color: '#E5E7EB' },
+  ];
+  const chartSlices = isEmpty ? emptySlices : slices;
+
   return (
     <div className="bg-white rounded-2xl border border-[#ECEEF3] shadow-sm p-6">
       <h3 className="text-[18px] font-bold text-[#101532] mb-4">{title}</h3>
       <div className="flex items-center gap-6">
         {/* Donut */}
-        <div className="h-[260px] w-[260px] flex-shrink-0">
+        <div className="h-[260px] w-[260px] flex-shrink-0 relative">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
-                data={slices}
+                data={chartSlices}
                 dataKey="value"
                 nameKey="name"
                 innerRadius="55%"
@@ -66,15 +82,25 @@ export default function DonutCard({ title, slices, showTotal = true }: DonutCard
                 stroke="#FFFFFF"
                 strokeWidth={2}
                 labelLine={false}
-                label={renderSliceLabel}
+                label={isEmpty ? undefined : renderSliceLabel}
                 isAnimationActive={false}
               >
-                {slices.map((s) => (
+                {chartSlices.map((s) => (
                   <Cell key={s.name} fill={s.color} />
                 ))}
               </Pie>
             </PieChart>
           </ResponsiveContainer>
+          {isEmpty && (
+            <div
+              className="absolute inset-0 flex items-center justify-center pointer-events-none"
+              aria-hidden="true"
+            >
+              <span className="text-[13px] font-medium text-[#6B7280]">
+                No data yet
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Legend + total */}
@@ -110,7 +136,7 @@ export default function DonutCard({ title, slices, showTotal = true }: DonutCard
               <div
                 className="text-[28px] font-extrabold text-[#101532] leading-tight"
               >
-                {TOTAL_INTERVENTIONS}
+                {total}
               </div>
             </div>
           )}

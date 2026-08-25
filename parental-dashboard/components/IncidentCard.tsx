@@ -38,11 +38,11 @@ const severityConfig = {
 };
 
 const categoryLabels = {
-  self_harm: 'Self-Harm',
-  privacy_risk: 'Privacy Risk',
-  meeting_stranger: 'Meeting Stranger',
-  risky_behavior: 'Risky Behavior',
-  cyberbullying: 'Cyberbullying'
+  harassment: 'Harassment',
+  threats: 'Threats',
+  hate_speech: 'Hate Speech',
+  sexual_content: 'Sexual Content',
+  self_harm: 'Self-Harm Risk'
 };
 
 const platformLabels = {

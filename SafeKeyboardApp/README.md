@@ -3,7 +3,7 @@
 **Version**: 2.0.0 (Enhanced Detection)
 **Last Updated**: January 28, 2026
 
-An Android keyboard (IME) that prevents cyberbullying through pre-send intervention with **90-95% accuracy**.
+An Android keyboard (IME) that prevents online harm through pre-send intervention with **90-95% accuracy**.
 
 ---
 

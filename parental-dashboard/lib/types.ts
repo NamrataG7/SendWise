@@ -5,11 +5,11 @@
 export type SeverityLevel = 'urgent' | 'critical' | 'high' | 'medium' | 'low' | 'none';
 
 export type IncidentCategory =
-  | 'self_harm'
-  | 'privacy_risk'
-  | 'risky_behavior'
-  | 'meeting_stranger'
-  | 'cyberbullying';
+  | 'harassment'
+  | 'threats'
+  | 'hate_speech'
+  | 'sexual_content'
+  | 'self_harm';
 
 export type Platform =
   | 'instagram'

@@ -10,11 +10,11 @@ import { z } from 'zod';
 
 // Mirrors IncidentCategory in lib/types.ts
 export const IncidentCategoryEnum = z.enum([
+  'harassment',
+  'threats',
+  'hate_speech',
+  'sexual_content',
   'self_harm',
-  'privacy_risk',
-  'risky_behavior',
-  'meeting_stranger',
-  'cyberbullying',
 ]);
 export type IncidentCategoryT = z.infer<typeof IncidentCategoryEnum>;
 
@@ -43,14 +43,9 @@ export const ViolationIngestSchema = z
 
 export type ViolationIngest = z.infer<typeof ViolationIngestSchema>;
 
-export const PairingRedeemSchema = z
-  .object({
-    code: z.string().regex(/^\d{6}$/, 'code must be 6 digits'),
-    parent_id: z.string().min(1),
-  })
-  .strict();
-
-export type PairingRedeem = z.infer<typeof PairingRedeemSchema>;
+// Note: pairing redeem body schema is now inlined in the redeem route
+// because parent_id is derived server-side from the session, not the client body.
+// See parental-dashboard/app/api/pairing/redeem/route.ts.
 
 export const PairingGenerateSchema = z
   .object({

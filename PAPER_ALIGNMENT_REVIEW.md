@@ -5,6 +5,15 @@
 **Paper:** `SendWise.docx` (extracted claims summarised inline).
 **Design spec:** `DESIGN_SPEC_FROM_PAPER.md` (used as secondary source of truth).
 
+> **RESOLUTION NOTE (F2 — Category Taxonomy):** The triple-taxonomy mismatch
+> described in claim 3 / finding F2 below has been resolved. The codebase now
+> uses the paper's canonical 5 categories end-to-end:
+> `harassment, threats, hate_speech, sexual_content, self_harm`. The
+> `ToxicityAnalyzer` emits these names directly, `ViolationLogger.mapCategory()`
+> is now a pass-through identity, and the API/dashboard schema
+> (`schema.ts`, `types.ts`) enumerates the same five values. The historical
+> descriptions of the mismatch below are preserved for the review record.
+
 ---
 
 ## Executive summary

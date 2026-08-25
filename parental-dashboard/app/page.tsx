@@ -10,11 +10,11 @@ import { IncidentCategory } from '@/lib/types';
 
 export default function Dashboard() {
   const [selectedCategories, setSelectedCategories] = useState<IncidentCategory[]>([
-    'self_harm',
-    'privacy_risk',
-    'meeting_stranger',
-    'risky_behavior',
-    'cyberbullying'
+    'harassment',
+    'threats',
+    'hate_speech',
+    'sexual_content',
+    'self_harm'
   ]);
 
   const handleCategoryToggle = (category: IncidentCategory) => {

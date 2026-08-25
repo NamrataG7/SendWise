@@ -95,7 +95,7 @@ session_id, user_id_hash) is accepted or stored.
 {
   "user_id_hash": "<64 hex chars, SHA-256>",
   "timestamp": "2026-01-28T10:15:30Z",
-  "category": "self_harm | privacy_risk | risky_behavior | meeting_stranger | cyberbullying",
+  "category": "harassment | threats | hate_speech | sexual_content | self_harm",
   "severity": "low | medium | high",
   "action": "edited | sent_anyway | blocked | cancelled",
   "session_id": "<opaque session id>"
@@ -383,8 +383,8 @@ npm run dev
 ```
 
 Navigate to `localhost:3000` and you'll see:
-- 3 critical incidents (self-harm, privacy, meeting stranger)
-- 5 other incidents (risky behavior, cyberbullying)
+- 3 critical incidents (self-harm, harassment, threats)
+- 5 other incidents (hate speech, sexual content, harassment)
 - Stats overview with realistic numbers
 - All category filters working
 

@@ -87,6 +87,7 @@ export default async function InsightsPage() {
         )}
 
         <InsightsGrid
+          total={chartData.total}
           trend={chartData.trend}
           categoryDistribution={chartData.categoryDistribution}
           severityDistribution={chartData.severityDistribution}

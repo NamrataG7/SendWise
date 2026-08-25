@@ -12,7 +12,7 @@ import retrofit2.http.POST
  * {
  *   "user_id_hash": "<64 hex, SHA-256>",
  *   "timestamp":    "<ISO 8601>",
- *   "category":     "self_harm | privacy_risk | risky_behavior | meeting_stranger | cyberbullying",
+ *   "category":     "harassment | threats | hate_speech | sexual_content | self_harm",
  *   "severity":     "low | medium | high",
  *   "action":       "edited | sent_anyway | blocked | cancelled",
  *   "session_id":   "<per-app-launch UUID>"

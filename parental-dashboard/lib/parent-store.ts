@@ -43,3 +43,21 @@ export async function getChildrenForParent(parentId: string): Promise<string[]> 
   // Defensive: only return well-formed user_id_hashes.
   return Array.from(merged).filter((m) => /^[a-f0-9]{64}$/i.test(m));
 }
+
+/**
+ * Membership check: is `user_id_hash` linked to `parentId`?
+ *
+ * Used by read APIs (violations, insights) to prevent IDOR — any signed-in
+ * parent must only be able to read data for children they have paired.
+ *
+ * Returns false for missing/invalid inputs rather than throwing.
+ */
+export async function isChildOfParent(
+  parentId: string | null | undefined,
+  user_id_hash: string,
+): Promise<boolean> {
+  if (!parentId || !user_id_hash) return false;
+  if (!/^[a-f0-9]{64}$/i.test(user_id_hash)) return false;
+  const children = await getChildrenForParent(parentId);
+  return children.includes(user_id_hash);
+}

@@ -39,11 +39,11 @@ interface StoredViolation {
 }
 
 const CATEGORIES: IncidentCategoryT[] = [
+  'harassment',
+  'threats',
+  'hate_speech',
+  'sexual_content',
   'self_harm',
-  'privacy_risk',
-  'risky_behavior',
-  'meeting_stranger',
-  'cyberbullying',
 ];
 const SEVERITIES: SeverityT[] = ['low', 'medium', 'high'];
 

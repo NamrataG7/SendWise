@@ -22,11 +22,29 @@ import java.util.Locale
  * Output Format:
  * {
  *   "toxicity_score": 0.0 – 1.0,
- *   "category": "harassment | hate | threat | sexual | none",
+ *   "category": "harassment | threats | hate_speech | sexual_content | self_harm | none",
  *   "severity": "low | medium | high"
  * }
  */
 class ToxicityAnalyzer(private val context: Context) {
+
+    companion object {
+        // Canonical 5 risk categories (mirrors parental-dashboard/lib/schema.ts).
+        const val CATEGORY_HARASSMENT = "harassment"
+        const val CATEGORY_THREATS = "threats"
+        const val CATEGORY_HATE_SPEECH = "hate_speech"
+        const val CATEGORY_SEXUAL_CONTENT = "sexual_content"
+        const val CATEGORY_SELF_HARM = "self_harm"
+        const val CATEGORY_NONE = "none"
+
+        val CANONICAL_CATEGORIES: List<String> = listOf(
+            CATEGORY_HARASSMENT,
+            CATEGORY_THREATS,
+            CATEGORY_HATE_SPEECH,
+            CATEGORY_SEXUAL_CONTENT,
+            CATEGORY_SELF_HARM
+        )
+    }
 
     data class AnalysisResult(
         val toxicityScore: Float,
@@ -64,6 +82,15 @@ class ToxicityAnalyzer(private val context: Context) {
         "wanna hookup", "dtf", "netflix and chill"
     )
 
+    private val selfHarmTerms = setOf(
+        // Self-harm / suicidal ideation (first-person expressions)
+        "kill myself", "kms", "end my life", "end it all",
+        "want to die", "wanna die", "suicide", "suicidal",
+        "cut myself", "hurt myself", "self harm", "self-harm",
+        "no reason to live", "better off dead", "hate myself",
+        "not worth living", "cant go on", "can't go on"
+    )
+
     // Intensity multipliers
     private val intensifiers = setOf(
         "really", "very", "extremely", "so", "absolutely",
@@ -88,17 +115,19 @@ class ToxicityAnalyzer(private val context: Context) {
         val hateScore = calculateCategoryScore(normalizedMessage, words, hateTerms)
         val threatScore = calculateCategoryScore(normalizedMessage, words, threatTerms)
         val sexualScore = calculateCategoryScore(normalizedMessage, words, sexualTerms)
+        val selfHarmScore = calculateCategoryScore(normalizedMessage, words, selfHarmTerms)
 
-        // Determine dominant category
+        // Determine dominant category (canonical 5 taxonomy)
         val categoryScores = mapOf(
-            "harassment" to harassmentScore,
-            "hate" to hateScore,
-            "threat" to threatScore,
-            "sexual" to sexualScore
+            CATEGORY_HARASSMENT to harassmentScore,
+            CATEGORY_HATE_SPEECH to hateScore,
+            CATEGORY_THREATS to threatScore,
+            CATEGORY_SEXUAL_CONTENT to sexualScore,
+            CATEGORY_SELF_HARM to selfHarmScore
         )
 
         val maxCategory = categoryScores.maxByOrNull { it.value }
-        val dominantCategory = maxCategory?.key ?: "none"
+        val dominantCategory = maxCategory?.key ?: CATEGORY_NONE
         val maxScore = maxCategory?.value ?: 0f
 
         // Apply context modifiers
@@ -112,7 +141,7 @@ class ToxicityAnalyzer(private val context: Context) {
             else -> "none"
         }
 
-        val finalCategory = if (adjustedScore < 0.25f) "none" else dominantCategory
+        val finalCategory = if (adjustedScore < 0.25f) CATEGORY_NONE else dominantCategory
 
         return AnalysisResult(
             toxicityScore = adjustedScore,

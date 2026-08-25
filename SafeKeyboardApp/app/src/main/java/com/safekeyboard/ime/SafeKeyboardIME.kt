@@ -3,6 +3,7 @@ package com.safekeyboard.ime
 import android.inputmethodservice.InputMethodService
 import android.inputmethodservice.Keyboard
 import android.inputmethodservice.KeyboardView
+import android.util.Log
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
@@ -15,7 +16,7 @@ import com.safekeyboard.network.ViolationLogger
 import kotlinx.coroutines.*
 
 /**
- * SafeKeyboardIME - Core keyboard service implementing cyberbullying prevention
+ * SafeKeyboardIME - Core keyboard service implementing pre-send harm prevention
  *
  * This Input Method Editor (IME):
  * - Captures all user input in a message buffer
@@ -55,6 +56,44 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
     private var lastKeyPressTime = 0L
     private var currentAppPackage = ""
 
+    // --- Fig 3 telemetry state ---------------------------------------------
+    // Stash of the analysis result that triggered the currently-visible
+    // warning overlay. Retained beyond `overlayManager.currentAnalysisResult`
+    // so we can still log action="cancelled" after the overlay is torn down
+    // by the system (onFinishInputView / onDestroy).
+    private var pendingWarningCategory: String? = null
+    private var pendingWarningSeverity: String? = null
+
+    // Guard against double-logging: set true as soon as we log any terminal
+    // action for the current warning (edited / sent_anyway / cancelled).
+    private var warningDecisionMade = true
+
+    // Simple in-process counters for on-device verification of the
+    // Edited vs Sent Unchanged ratio during device testing. Dumped to
+    // logcat at verbose level after every action.
+    private data class TelemetryCounts(
+        var edited: Int = 0,
+        var sentAnyway: Int = 0,
+        var cancelled: Int = 0,
+        var blocked: Int = 0
+    )
+    private val telemetryCounts = TelemetryCounts()
+
+    private fun logTelemetryCounts(justLogged: String) {
+        Log.v(
+            TAG,
+            "TelemetryCounts action=$justLogged " +
+                "edited=${telemetryCounts.edited} " +
+                "sent_anyway=${telemetryCounts.sentAnyway} " +
+                "cancelled=${telemetryCounts.cancelled} " +
+                "blocked=${telemetryCounts.blocked}"
+        )
+    }
+
+    companion object {
+        private const val TAG = "SafeKeyboardIME"
+    }
+
     override fun onCreate() {
         super.onCreate()
 
@@ -71,6 +110,13 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
             } else {
                 handleEditChoice()
             }
+        }
+
+        // If the overlay is torn down without the user tapping Edit or
+        // Continue (IME finished, service destroyed, tap outside), treat it
+        // as a cancellation so the Fig 3 donut denominator stays correct.
+        overlayManager.onDismissedWithoutDecision = {
+            handleOverlayCancelled()
         }
     }
 
@@ -355,6 +401,13 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
             severity = result.severity
         )
 
+        // Stash the triggering analysis so we can attribute a terminal action
+        // (edited / sent_anyway / cancelled) to the right category+severity
+        // even if the overlay is dismissed by the system before the user taps.
+        pendingWarningCategory = result.category
+        pendingWarningSeverity = result.severity
+        warningDecisionMade = false
+
         // Store current analysis result for logging (convert to old format for compatibility)
         val legacyResult = ToxicityAnalyzer.AnalysisResult(
             toxicityScore = result.toxicityScore,
@@ -369,6 +422,8 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
      */
     private fun handleSendAnywayChoice() {
         val result = overlayManager.currentAnalysisResult ?: return
+        if (warningDecisionMade) return
+        warningDecisionMade = true
 
         // Log violation metadata (NO message content)
         serviceScope.launch {
@@ -384,6 +439,13 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
             }
         }
 
+        telemetryCounts.sentAnyway += 1
+        logTelemetryCounts("sent_anyway")
+
+        // Clear pending stash
+        pendingWarningCategory = null
+        pendingWarningSeverity = null
+
         // Clear buffer after send
         messageBuffer.clear()
 
@@ -392,17 +454,94 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
     }
 
     /**
-     * User chose to edit - dismiss and allow editing
+     * User chose to edit - dismiss and allow editing.
+     * Logs action="edited" so Fig 3 can compare heeded vs ignored warnings.
      */
     private fun handleEditChoice() {
-        // Simply dismiss the popup, buffer remains intact
-        // User can continue editing
+        if (!warningDecisionMade) {
+            warningDecisionMade = true
 
-        // Reset send intent detector
+            val category = pendingWarningCategory
+                ?: overlayManager.currentAnalysisResult?.category
+            val severity = pendingWarningSeverity
+                ?: overlayManager.currentAnalysisResult?.severity
+
+            if (category != null && severity != null) {
+                serviceScope.launch {
+                    try {
+                        violationLogger.logViolation(
+                            category = category,
+                            severity = severity,
+                            action = "edited"
+                        )
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+                telemetryCounts.edited += 1
+                logTelemetryCounts("edited")
+            }
+        }
+
+        pendingWarningCategory = null
+        pendingWarningSeverity = null
+
+        // Buffer remains intact; user can continue editing.
+        // Reset send intent detector.
         sendIntentDetector.reset()
     }
 
+    /**
+     * Overlay was dismissed by the system without an explicit user decision
+     * (e.g. IME finished, service destroyed, tap outside). Log once as
+     * action="cancelled" so the Fig 3 donut denominator stays accurate.
+     */
+    private fun handleOverlayCancelled() {
+        if (warningDecisionMade) return
+        warningDecisionMade = true
+
+        val category = pendingWarningCategory
+            ?: overlayManager.currentAnalysisResult?.category
+        val severity = pendingWarningSeverity
+            ?: overlayManager.currentAnalysisResult?.severity
+
+        if (category != null && severity != null) {
+            serviceScope.launch {
+                try {
+                    violationLogger.logViolation(
+                        category = category,
+                        severity = severity,
+                        action = "cancelled"
+                    )
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+            telemetryCounts.cancelled += 1
+            logTelemetryCounts("cancelled")
+        }
+
+        pendingWarningCategory = null
+        pendingWarningSeverity = null
+    }
+
+    override fun onFinishInputView(finishingInput: Boolean) {
+        // If the overlay was showing and no decision was made, this counts
+        // as a cancellation. WarningOverlayManager.cleanup() will fire the
+        // onDismissedWithoutDecision callback; we mirror that here in case
+        // the view is torn down without cleanup() (safety net; guarded by
+        // warningDecisionMade so we don't double-log).
+        if (overlayManager.isOverlayShowing() && !warningDecisionMade) {
+            handleOverlayCancelled()
+        }
+        super.onFinishInputView(finishingInput)
+    }
+
     override fun onDestroy() {
+        // Ensure a hanging warning gets a cancelled log before teardown.
+        if (overlayManager.isOverlayShowing() && !warningDecisionMade) {
+            handleOverlayCancelled()
+        }
         super.onDestroy()
         serviceScope.cancel()
         overlayManager.cleanup()

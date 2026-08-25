@@ -91,7 +91,10 @@
         riskScore: riskScore,
         severity: severity,
         detections: detections,
-        category: 'privacy_risk'
+        // Auxiliary detector — does not map to the canonical 5-category
+        // taxonomy (harassment/threats/hate_speech/sexual_content/self_harm).
+        // Callers should treat this as a signal, not a final classification.
+        category: 'none'
       };
     },
 
