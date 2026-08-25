@@ -163,11 +163,20 @@ class InMemoryRedis implements RedisLike {
   }
 }
 
-// ---------------- Singleton ----------------
+// ---------------- Singleton (lazy) ----------------
 
 declare global {
   // eslint-disable-next-line no-var
   var __sendwise_redis__: RedisLike | undefined;
+}
+
+function isValidRedisUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'redis:' || u.protocol === 'rediss:';
+  } catch {
+    return false;
+  }
 }
 
 function createClient(): RedisLike {
@@ -179,14 +188,48 @@ function createClient(): RedisLike {
     );
     return new InMemoryRedis();
   }
+  if (!isValidRedisUrl(url)) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[sendwise] REDIS_URL is malformed (expected redis:// or rediss:// URL) — falling back to in-memory stub. Fix the env var to persist data.',
+    );
+    return new InMemoryRedis();
+  }
   // Lazy-require ioredis so the stub path works even if the dependency
   // hasn't been installed yet.
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const IORedisCtor = require('ioredis') as { default?: new (url: string) => IORedis } & (new (url: string) => IORedis);
-  const Ctor = (IORedisCtor as { default?: new (url: string) => IORedis }).default ?? IORedisCtor;
-  const client = new (Ctor as new (url: string) => IORedis)(url);
-  return client as unknown as RedisLike;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const IORedisCtor = require('ioredis') as { default?: new (url: string) => IORedis } & (new (url: string) => IORedis);
+    const Ctor = (IORedisCtor as { default?: new (url: string) => IORedis }).default ?? IORedisCtor;
+    const client = new (Ctor as new (url: string) => IORedis)(url);
+    return client as unknown as RedisLike;
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[sendwise] Failed to init ioredis client — falling back to in-memory stub. Error:',
+      err instanceof Error ? err.message : err,
+    );
+    return new InMemoryRedis();
+  }
 }
 
-export const redis: RedisLike =
-  globalThis.__sendwise_redis__ ?? (globalThis.__sendwise_redis__ = createClient());
+// Lazy proxy — do NOT construct the client at module load time (breaks Next.js
+// build-time page-data collection when REDIS_URL is missing/invalid). The
+// client is created on the first actual command invocation.
+function getClient(): RedisLike {
+  if (!globalThis.__sendwise_redis__) {
+    globalThis.__sendwise_redis__ = createClient();
+  }
+  return globalThis.__sendwise_redis__;
+}
+
+export const redis: RedisLike = new Proxy({} as RedisLike, {
+  get(_target, prop: string | symbol) {
+    const client = getClient() as unknown as Record<string | symbol, unknown>;
+    const value = client[prop];
+    if (typeof value === 'function') {
+      return value.bind(client);
+    }
+    return value;
+  },
+});
