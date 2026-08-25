@@ -180,7 +180,12 @@ function isValidRedisUrl(url: string): boolean {
 }
 
 function createClient(): RedisLike {
-  const url = process.env.REDIS_URL;
+  // Accept either REDIS_URL (standard) or SENDWISE_REDIS_URL (Vercel KV
+  // integration convention that prefixes env vars by database name).
+  const url =
+    process.env.REDIS_URL ||
+    process.env.SENDWISE_REDIS_URL ||
+    process.env.sendwise_REDIS_URL;
   if (!url) {
     // eslint-disable-next-line no-console
     console.warn(
