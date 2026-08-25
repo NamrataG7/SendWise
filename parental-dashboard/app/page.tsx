@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import Link from 'next/link';
 import IncidentCard from '@/components/IncidentCard';
 import StatsOverview from '@/components/StatsOverview';
 import CategoryFilter from '@/components/CategoryFilter';
@@ -80,6 +81,12 @@ export default function Dashboard() {
                 <p className="text-sm text-gray-600">Child</p>
                 <p className="font-semibold">{sampleChild.name} ({sampleChild.age})</p>
               </div>
+              <Link
+                href="/insights"
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition"
+              >
+                View Fig 3 Insights →
+              </Link>
               <button
                 onClick={handleExportReport}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition"

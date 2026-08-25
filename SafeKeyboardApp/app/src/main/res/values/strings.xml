@@ -52,4 +52,17 @@
 
     <!-- Legal Disclaimer -->
     <string name="legal_disclaimer">⚠️ Disclaimer: This information is for educational purposes only and does not constitute legal advice. Laws vary by jurisdiction. Consult a licensed attorney for specific legal guidance.</string>
+
+    <!-- SendWise Fig 2 overlay strings -->
+    <string name="sendwise_hero_title">SendWise Warning</string>
+    <string name="sendwise_headline_default">Potentially harmful language detected</string>
+    <string name="sendwise_label_category">Category:</string>
+    <string name="sendwise_label_severity">Severity:</string>
+    <string name="sendwise_category_default">Harassment</string>
+    <string name="sendwise_severity_default">Medium</string>
+    <string name="sendwise_guidance_default">\u201CReview your message before sending.\u201D</string>
+    <string name="sendwise_button_continue">Continue</string>
+    <string name="sendwise_shield_content_desc">SendWise warning shield</string>
+    <string name="sendwise_warning_icon_content_desc">Warning</string>
+    <string name="sendwise_bar_icon_content_desc">Severity indicator</string>
 </resources>

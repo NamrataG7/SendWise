@@ -1,0 +1,192 @@
+/**
+ * Redis client singleton for SendWise Parental Dashboard.
+ *
+ * If REDIS_URL is not set (local dev), falls back to an in-memory Map-backed
+ * stub implementing the subset of ioredis commands used by our API routes:
+ *   - incr, expire, ttl
+ *   - lpush, ltrim, lrange, llen
+ *   - set (with EX), get, del
+ *   - sadd, smembers
+ *
+ * This keeps `npm run dev` working without a Redis server.
+ */
+
+import type { Redis as IORedis } from 'ioredis';
+
+// The minimal command surface our routes use. Keep in sync with route handlers.
+export interface RedisLike {
+  incr(key: string): Promise<number>;
+  expire(key: string, seconds: number): Promise<number>;
+  ttl(key: string): Promise<number>;
+  lpush(key: string, ...values: string[]): Promise<number>;
+  ltrim(key: string, start: number, stop: number): Promise<'OK'>;
+  lrange(key: string, start: number, stop: number): Promise<string[]>;
+  llen(key: string): Promise<number>;
+  set(key: string, value: string, mode?: 'EX', ttlSeconds?: number): Promise<'OK'>;
+  get(key: string): Promise<string | null>;
+  del(key: string): Promise<number>;
+  sadd(key: string, ...members: string[]): Promise<number>;
+  smembers(key: string): Promise<string[]>;
+}
+
+// ---------------- In-memory stub ----------------
+
+type Entry =
+  | { type: 'string'; value: string; expiresAt?: number }
+  | { type: 'list'; value: string[]; expiresAt?: number }
+  | { type: 'set'; value: Set<string>; expiresAt?: number };
+
+class InMemoryRedis implements RedisLike {
+  private store = new Map<string, Entry>();
+
+  private isExpired(entry: Entry): boolean {
+    return entry.expiresAt !== undefined && Date.now() > entry.expiresAt;
+  }
+
+  private getEntry(key: string): Entry | undefined {
+    const entry = this.store.get(key);
+    if (!entry) return undefined;
+    if (this.isExpired(entry)) {
+      this.store.delete(key);
+      return undefined;
+    }
+    return entry;
+  }
+
+  async incr(key: string): Promise<number> {
+    const entry = this.getEntry(key);
+    let n = 0;
+    if (entry && entry.type === 'string') {
+      n = parseInt(entry.value, 10) || 0;
+    }
+    n += 1;
+    this.store.set(key, {
+      type: 'string',
+      value: String(n),
+      expiresAt: entry?.expiresAt,
+    });
+    return n;
+  }
+
+  async expire(key: string, seconds: number): Promise<number> {
+    const entry = this.getEntry(key);
+    if (!entry) return 0;
+    entry.expiresAt = Date.now() + seconds * 1000;
+    this.store.set(key, entry);
+    return 1;
+  }
+
+  async ttl(key: string): Promise<number> {
+    const entry = this.getEntry(key);
+    if (!entry) return -2;
+    if (entry.expiresAt === undefined) return -1;
+    return Math.max(0, Math.floor((entry.expiresAt - Date.now()) / 1000));
+  }
+
+  async lpush(key: string, ...values: string[]): Promise<number> {
+    const entry = this.getEntry(key);
+    const list = entry && entry.type === 'list' ? entry.value : [];
+    // LPUSH inserts each value at head individually, matching Redis order
+    for (const v of values) list.unshift(v);
+    this.store.set(key, { type: 'list', value: list, expiresAt: entry?.expiresAt });
+    return list.length;
+  }
+
+  async ltrim(key: string, start: number, stop: number): Promise<'OK'> {
+    const entry = this.getEntry(key);
+    if (!entry || entry.type !== 'list') return 'OK';
+    const len = entry.value.length;
+    const s = start < 0 ? Math.max(0, len + start) : start;
+    const e = stop < 0 ? len + stop : stop;
+    entry.value = entry.value.slice(s, e + 1);
+    this.store.set(key, entry);
+    return 'OK';
+  }
+
+  async lrange(key: string, start: number, stop: number): Promise<string[]> {
+    const entry = this.getEntry(key);
+    if (!entry || entry.type !== 'list') return [];
+    const len = entry.value.length;
+    const s = start < 0 ? Math.max(0, len + start) : start;
+    const e = stop < 0 ? len + stop : stop;
+    return entry.value.slice(s, e + 1);
+  }
+
+  async llen(key: string): Promise<number> {
+    const entry = this.getEntry(key);
+    if (!entry || entry.type !== 'list') return 0;
+    return entry.value.length;
+  }
+
+  async set(
+    key: string,
+    value: string,
+    mode?: 'EX',
+    ttlSeconds?: number,
+  ): Promise<'OK'> {
+    const expiresAt =
+      mode === 'EX' && ttlSeconds !== undefined
+        ? Date.now() + ttlSeconds * 1000
+        : undefined;
+    this.store.set(key, { type: 'string', value, expiresAt });
+    return 'OK';
+  }
+
+  async get(key: string): Promise<string | null> {
+    const entry = this.getEntry(key);
+    if (!entry || entry.type !== 'string') return null;
+    return entry.value;
+  }
+
+  async del(key: string): Promise<number> {
+    return this.store.delete(key) ? 1 : 0;
+  }
+
+  async sadd(key: string, ...members: string[]): Promise<number> {
+    const entry = this.getEntry(key);
+    const set = entry && entry.type === 'set' ? entry.value : new Set<string>();
+    let added = 0;
+    for (const m of members) {
+      if (!set.has(m)) {
+        set.add(m);
+        added += 1;
+      }
+    }
+    this.store.set(key, { type: 'set', value: set, expiresAt: entry?.expiresAt });
+    return added;
+  }
+
+  async smembers(key: string): Promise<string[]> {
+    const entry = this.getEntry(key);
+    if (!entry || entry.type !== 'set') return [];
+    return Array.from(entry.value);
+  }
+}
+
+// ---------------- Singleton ----------------
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __sendwise_redis__: RedisLike | undefined;
+}
+
+function createClient(): RedisLike {
+  const url = process.env.REDIS_URL;
+  if (!url) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[sendwise] REDIS_URL not set — using in-memory Redis stub (dev only).',
+    );
+    return new InMemoryRedis();
+  }
+  // Lazy-require ioredis so the stub path works even if the dependency
+  // hasn't been installed yet.
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const IORedisCtor = require('ioredis') as { default?: new (url: string) => IORedis } & (new (url: string) => IORedis);
+  const Ctor = (IORedisCtor as { default?: new (url: string) => IORedis }).default ?? IORedisCtor;
+  const client = new (Ctor as new (url: string) => IORedis)(url);
+  return client as unknown as RedisLike;
+}
+
+export const redis: RedisLike =
+  globalThis.__sendwise_redis__ ?? (globalThis.__sendwise_redis__ = createClient());

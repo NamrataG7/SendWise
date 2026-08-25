@@ -1,161 +1,276 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  SendWise pre-send warning overlay (Fig 2)
+  Rendered by WarningOverlayManager via WindowManager as a modal card.
+  Structure:
+    - Full-screen scrim (dark)
+    - Centered rounded card (20dp corners)
+      - Pink hero band with shield icon + "SendWise Warning"
+      - White body:
+          red triangle + red headline
+          category chip (lavender)
+          severity chip (peach)
+          italic guidance quote
+          outlined "Edit Message" | filled "Continue"
+-->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/warning_overlay_background"
+    android:background="@color/sendwise_scrim"
     android:clickable="true"
     android:focusable="true">
 
-    <androidx.cardview.widget.CardView
+    <!-- Card container -->
+    <LinearLayout
+        android:id="@+id/sendwise_card"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
-        android:layout_marginHorizontal="32dp"
-        app:cardCornerRadius="16dp"
-        app:cardElevation="8dp"
-        android:background="@color/warning_card_background">
+        android:layout_marginHorizontal="24dp"
+        android:background="@drawable/bg_card_rounded"
+        android:clipToOutline="true"
+        android:elevation="12dp"
+        android:orientation="vertical">
 
+        <!-- ============ Pink hero band ============ -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_hero_band"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:paddingHorizontal="24dp"
+            android:paddingTop="28dp"
+            android:paddingBottom="24dp">
+
+            <ImageView
+                android:layout_width="72dp"
+                android:layout_height="72dp"
+                android:contentDescription="@string/sendwise_shield_content_desc"
+                android:src="@drawable/ic_shield_warning" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:fontFamily="sans-serif-black"
+                android:letterSpacing="-0.01"
+                android:text="@string/sendwise_hero_title"
+                android:textColor="@color/sendwise_hero_title"
+                android:textSize="24sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- ============ White body ============ -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="24dp">
+            android:paddingHorizontal="22dp"
+            android:paddingTop="22dp"
+            android:paddingBottom="22dp">
 
-            <!-- Warning Icon -->
-            <ImageView
-                android:layout_width="64dp"
-                android:layout_height="64dp"
-                android:layout_gravity="center_horizontal"
-                android:src="@drawable/ic_warning"
-                android:contentDescription="Warning"
-                android:tint="@color/accent" />
-
-            <!-- Warning Title -->
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:text="@string/warning_title"
-                android:textSize="20sp"
-                android:textStyle="bold"
-                android:textColor="@color/warning_text"
-                android:gravity="center"
-                android:fontFamily="sans-serif-medium" />
-
-            <!-- Warning Message -->
-            <TextView
-                android:id="@+id/warning_message"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="@string/warning_message"
-                android:textSize="16sp"
-                android:textColor="@color/warning_text"
-                android:gravity="center"
-                android:lineSpacingMultiplier="1.3" />
-
-            <!-- Category Badge (optional, can show detected category) -->
-            <TextView
-                android:id="@+id/category_badge"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center_horizontal"
-                android:layout_marginTop="12dp"
-                android:paddingHorizontal="12dp"
-                android:paddingVertical="6dp"
-                android:background="@drawable/badge_background"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:textColor="@color/white"
-                android:visibility="gone" />
-
-            <!-- Legal Notice Section -->
+            <!-- Red triangle + headline row -->
             <LinearLayout
-                android:id="@+id/legal_notice_container"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:padding="12dp"
-                android:background="@drawable/legal_notice_background"
-                android:orientation="vertical"
-                android:visibility="visible">
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <ImageView
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:contentDescription="@string/sendwise_warning_icon_content_desc"
+                    android:src="@drawable/ic_warning_triangle" />
 
                 <TextView
-                    android:layout_width="match_parent"
+                    android:id="@+id/warning_message"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:text="⚖️ Legal Notice"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/legal_text"
-                    android:gravity="center" />
-
-                <TextView
-                    android:id="@+id/legal_notice_text"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:text="@string/legal_notice_default"
-                    android:textSize="12sp"
-                    android:textColor="@color/legal_text_secondary"
-                    android:gravity="center"
-                    android:lineSpacingMultiplier="1.2" />
-
-                <!-- Legal Disclaimer -->
-                <TextView
-                    android:id="@+id/legal_disclaimer"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:paddingTop="8dp"
-                    android:text="@string/legal_disclaimer"
-                    android:textSize="10sp"
-                    android:textStyle="italic"
-                    android:textColor="@color/legal_text_secondary"
-                    android:gravity="center"
-                    android:lineSpacingMultiplier="1.2"
-                    android:background="@drawable/legal_notice_background" />
-
+                    android:layout_marginStart="14dp"
+                    android:layout_weight="1"
+                    android:fontFamily="sans-serif-black"
+                    android:lineSpacingExtra="2dp"
+                    android:text="@string/sendwise_headline_default"
+                    android:textColor="@color/sendwise_warning_red"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
             </LinearLayout>
 
-            <!-- Button Container -->
+            <!-- Category chip -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
+                android:layout_marginTop="18dp"
+                android:background="@drawable/bg_chip_category"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="12dp">
+
+                <FrameLayout
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:background="@drawable/bg_chip_icon_purple">
+
+                    <ImageView
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:layout_gravity="center"
+                        android:contentDescription="@null"
+                        android:src="@drawable/ic_tag" />
+                </FrameLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="@string/sendwise_label_category"
+                    android:textColor="@color/sendwise_text_primary"
+                    android:textSize="15sp" />
+
+                <TextView
+                    android:id="@+id/category_badge"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="@string/sendwise_category_default"
+                    android:textColor="@color/sendwise_chip_category_text"
+                    android:textSize="15sp" />
+            </LinearLayout>
+
+            <!-- Severity chip -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_chip_severity"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="12dp">
+
+                <FrameLayout
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:background="@drawable/bg_chip_icon_peach">
+
+                    <ImageView
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:layout_gravity="center"
+                        android:contentDescription="@string/sendwise_bar_icon_content_desc"
+                        android:src="@drawable/ic_bar_severity" />
+                </FrameLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="@string/sendwise_label_severity"
+                    android:textColor="@color/sendwise_text_primary"
+                    android:textSize="15sp" />
+
+                <TextView
+                    android:id="@+id/severity_value"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="@string/sendwise_severity_default"
+                    android:textColor="@color/sendwise_severity_medium"
+                    android:textSize="15sp" />
+            </LinearLayout>
+
+            <!-- Italic guidance quote -->
+            <TextView
+                android:id="@+id/sendwise_guidance"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:gravity="center"
+                android:text="@string/sendwise_guidance_default"
+                android:textColor="@color/sendwise_text_primary"
+                android:textSize="15sp"
+                android:textStyle="italic" />
+
+            <!-- Button row -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
                 android:orientation="horizontal"
                 android:weightSum="2">
 
-                <!-- Edit Button -->
-                <Button
+                <!-- Outlined: Edit Message -->
+                <LinearLayout
                     android:id="@+id/button_edit"
                     android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
+                    android:layout_height="52dp"
                     android:layout_marginEnd="8dp"
-                    android:text="@string/button_edit"
-                    android:textColor="@color/white"
-                    android:backgroundTint="@color/button_edit"
-                    android:paddingVertical="12dp"
-                    style="@style/Widget.MaterialComponents.Button" />
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_btn_purple_outlined"
+                    android:clickable="true"
+                    android:contentDescription="@string/button_edit"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:minHeight="48dp"
+                    android:orientation="horizontal">
 
-                <!-- Send Anyway Button -->
-                <Button
+                    <ImageView
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:contentDescription="@null"
+                        android:src="@drawable/ic_pencil" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:fontFamily="sans-serif-medium"
+                        android:text="@string/button_edit"
+                        android:textAllCaps="false"
+                        android:textColor="@color/sendwise_purple_primary"
+                        android:textSize="15sp" />
+                </LinearLayout>
+
+                <!-- Filled: Continue / Send Anyway -->
+                <LinearLayout
                     android:id="@+id/button_send_anyway"
                     android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
+                    android:layout_height="52dp"
                     android:layout_marginStart="8dp"
-                    android:text="@string/button_send_anyway"
-                    android:textColor="@color/white"
-                    android:backgroundTint="@color/button_send_anyway"
-                    android:paddingVertical="12dp"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_btn_purple_filled"
+                    android:clickable="true"
+                    android:contentDescription="@string/sendwise_button_continue"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:minHeight="48dp"
+                    android:orientation="horizontal">
 
+                    <ImageView
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:contentDescription="@null"
+                        android:src="@drawable/ic_send" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:fontFamily="sans-serif-medium"
+                        android:text="@string/sendwise_button_continue"
+                        android:textAllCaps="false"
+                        android:textColor="@color/white"
+                        android:textSize="15sp" />
+                </LinearLayout>
             </LinearLayout>
-
         </LinearLayout>
-
-    </androidx.cardview.widget.CardView>
-
+    </LinearLayout>
 </FrameLayout>

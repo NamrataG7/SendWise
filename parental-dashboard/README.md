@@ -7,6 +7,50 @@ Comprehensive child safety monitoring dashboard for parents.
 
 ---
 
+## 🌐 API Endpoints
+
+The dashboard ships with a Next.js App Router API layer that ingests **metadata only**
+from the Android IME (never message content) and serves aggregated insights.
+
+### Environment Variables
+
+| Variable    | Required | Description                                                                 |
+|-------------|----------|-----------------------------------------------------------------------------|
+| `REDIS_URL` | No*      | Redis connection string. If unset, falls back to an in-memory stub (dev).   |
+
+\*Required in production. Use Vercel KV or Upstash Redis. See `.env.example`.
+
+### Endpoints
+
+| Method | Path                                    | Purpose                                                                 |
+|--------|-----------------------------------------|-------------------------------------------------------------------------|
+| POST   | `/api/violations`                       | IME ingest. Metadata only. Rate-limited 100/hr per `user_id_hash`.      |
+| GET    | `/api/violations/[user_id_hash]`        | List violations for a child (parent auth in Phase 2).                   |
+| POST   | `/api/pairing/generate`                 | Generate 6-digit pairing code (15 min TTL) for a `user_id_hash`.        |
+| POST   | `/api/pairing/redeem`                   | Redeem code → link child to `parent_id`. One-time use.                  |
+| GET    | `/api/insights/[user_id_hash]`          | Aggregated dashboard payload (30-day trend, category/severity, actions).|
+
+### Privacy Guard
+
+`POST /api/violations` **rejects** any payload containing `text`, `message`, or
+`content` fields. Only sanitized metadata (category, severity, action, timestamp,
+session_id, user_id_hash) is accepted or stored.
+
+### Ingest Payload Shape
+
+```json
+{
+  "user_id_hash": "<64 hex chars, SHA-256>",
+  "timestamp": "2026-01-28T10:15:30Z",
+  "category": "self_harm | privacy_risk | risky_behavior | meeting_stranger | cyberbullying",
+  "severity": "low | medium | high",
+  "action": "edited | sent_anyway | blocked | cancelled",
+  "session_id": "<opaque session id>"
+}
+```
+
+---
+
 ## 🎯 Features
 
 ### **Multi-Category Safety Monitoring**

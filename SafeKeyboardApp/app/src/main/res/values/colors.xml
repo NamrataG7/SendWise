@@ -19,8 +19,8 @@
     <color name="key_text">#FF212121</color>
     <color name="keyboard_background">#FFD6D6D6</color>
 
-    <!-- Warning colors -->
-    <color name="warning_overlay_background">#E6000000</color>
+    <!-- Warning colors (legacy) -->
+    <color name="warning_overlay_background">#B3000000</color>
     <color name="warning_card_background">#FFFFFFFF</color>
     <color name="warning_text">#FF212121</color>
     <color name="button_edit">#FF4CAF50</color>
@@ -30,4 +30,43 @@
     <color name="legal_background">#FFF3E5F5</color>
     <color name="legal_text">#FF6A1B9A</color>
     <color name="legal_text_secondary">#FF7B1FA2</color>
+
+    <!-- ================================================================ -->
+    <!-- SendWise design tokens (per DESIGN_SPEC_FROM_PAPER.md, Fig 2)     -->
+    <!-- ================================================================ -->
+
+    <!-- Card & scrim -->
+    <color name="sendwise_scrim">#B3000000</color>
+    <color name="sendwise_card_bg">#FFFFFFFF</color>
+
+    <!-- Hero band gradient (pink) -->
+    <color name="sendwise_warning_hero_start">#FDE4E1</color>
+    <color name="sendwise_warning_hero_end">#FBD5D0</color>
+
+    <!-- Red warning (headline + triangle + shield) -->
+    <color name="sendwise_warning_red">#E23744</color>
+    <color name="sendwise_warning_red_dark">#B02733</color>
+    <color name="sendwise_hero_title">#1B1F3B</color>
+
+    <!-- Purple / primary brand -->
+    <color name="sendwise_purple_primary">#6C3FE1</color>
+    <color name="sendwise_purple_deep">#5B2FD1</color>
+
+    <!-- Category chip (lavender) -->
+    <color name="sendwise_chip_category_bg">#F3EFF8</color>
+    <color name="sendwise_chip_category_text">#5B2FD1</color>
+
+    <!-- Severity chip (peach) -->
+    <color name="sendwise_chip_severity_bg">#FBEFE0</color>
+    <color name="sendwise_chip_severity_icon">#F59B2A</color>
+
+    <!-- Severity value colors -->
+    <color name="sendwise_severity_high">#E23744</color>
+    <color name="sendwise_severity_medium">#F59B2A</color>
+    <color name="sendwise_severity_low">#2FA36B</color>
+
+    <!-- Neutral text -->
+    <color name="sendwise_text_primary">#1B1F3B</color>
+    <color name="sendwise_text_secondary">#4B4E63</color>
+    <color name="sendwise_text_muted">#6B6E82</color>
 </resources>

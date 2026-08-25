@@ -8,14 +8,14 @@ import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowManager
-import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import com.safekeyboard.R
 import com.safekeyboard.nlp.ToxicityAnalyzer
 
 /**
- * WarningOverlayManager - Manages the pre-send blocking popup
+ * WarningOverlayManager - Manages the pre-send blocking popup (SendWise Fig 2 style).
  *
  * REQUIREMENTS:
  * - System overlay (not dialog)
@@ -24,8 +24,8 @@ import com.safekeyboard.nlp.ToxicityAnalyzer
  * - No shaming language
  *
  * Buttons:
- * 1. Edit message - Dismiss popup, return to keyboard, no server call
- * 2. Send anyway - Allow send, log violation metadata
+ * 1. Edit Message - Dismiss overlay, return to keyboard, no server call
+ * 2. Continue    - Allow send, log violation metadata
  */
 class WarningOverlayManager(private val context: Context) {
 
@@ -44,10 +44,12 @@ class WarningOverlayManager(private val context: Context) {
     }
 
     /**
-     * Shows the warning overlay
+     * Shows the warning overlay.
+     *
+     * @param category e.g. "Harassment", "Hate", "Threat", "Sexual"
+     * @param severity one of "High", "Medium", "Low" (case-insensitive)
      */
     fun showWarning(category: String, severity: String) {
-        // Check if we have overlay permission
         if (!hasOverlayPermission()) {
             Toast.makeText(
                 context,
@@ -57,19 +59,13 @@ class WarningOverlayManager(private val context: Context) {
             return
         }
 
-        // Don't show if already showing
-        if (isShowing) {
-            return
-        }
+        if (isShowing) return
 
-        // Inflate the overlay view
         val inflater = LayoutInflater.from(context)
         overlayView = inflater.inflate(R.layout.warning_overlay, null)
 
-        // Set up the view
         setupOverlayView(category, severity)
 
-        // Configure window parameters
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT,
@@ -84,10 +80,8 @@ class WarningOverlayManager(private val context: Context) {
                     WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
             PixelFormat.TRANSLUCENT
         )
-
         params.gravity = Gravity.CENTER
 
-        // Add the overlay to window
         try {
             windowManager?.addView(overlayView, params)
             isShowing = true
@@ -102,45 +96,42 @@ class WarningOverlayManager(private val context: Context) {
     }
 
     /**
-     * Sets up the overlay view with buttons and content
+     * Wires up dynamic content: category chip, severity chip (+ severity color),
+     * and the two action buttons.
      */
     private fun setupOverlayView(category: String, severity: String) {
         overlayView?.let { view ->
-            // Optional: Show category badge
-            val categoryBadge = view.findViewById<TextView>(R.id.category_badge)
-            categoryBadge.text = category.uppercase()
-            categoryBadge.visibility = View.VISIBLE
+            // Category value (title-case for display, e.g. "Harassment")
+            val categoryValue = view.findViewById<TextView>(R.id.category_badge)
+            categoryValue.text = category.replaceFirstChar { it.titlecase() }
+            categoryValue.visibility = View.VISIBLE
 
-            // Set legal notice text based on category
-            val legalNoticeText = view.findViewById<TextView>(R.id.legal_notice_text)
-            val legalTextResId = when (category.lowercase()) {
-                "harassment" -> R.string.legal_notice_harassment
-                "hate" -> R.string.legal_notice_hate
-                "threat" -> R.string.legal_notice_threat
-                "sexual" -> R.string.legal_notice_sexual
-                else -> R.string.legal_notice_default
+            // Severity value + dynamic color
+            val severityValue = view.findViewById<TextView>(R.id.severity_value)
+            val normalizedSeverity = severity.trim().replaceFirstChar { it.titlecase() }
+            severityValue.text = normalizedSeverity
+
+            val severityColorRes = when (severity.trim().lowercase()) {
+                "high", "severe", "critical" -> R.color.sendwise_severity_high
+                "low", "mild"                -> R.color.sendwise_severity_low
+                else                          -> R.color.sendwise_severity_medium
             }
-            legalNoticeText.setText(legalTextResId)
+            severityValue.setTextColor(ContextCompat.getColor(context, severityColorRes))
 
-            // Set up Edit button
-            val editButton = view.findViewById<Button>(R.id.button_edit)
-            editButton.setOnClickListener {
+            // Edit Message (outlined) - dismiss, no send
+            view.findViewById<View>(R.id.button_edit).setOnClickListener {
                 dismissOverlay()
-                onUserDecision?.invoke(false) // User chose to edit
+                onUserDecision?.invoke(false)
             }
 
-            // Set up Send Anyway button
-            val sendAnywayButton = view.findViewById<Button>(R.id.button_send_anyway)
-            sendAnywayButton.setOnClickListener {
+            // Continue / Send Anyway (filled) - allow send
+            view.findViewById<View>(R.id.button_send_anyway).setOnClickListener {
                 dismissOverlay()
-                onUserDecision?.invoke(true) // User chose to send anyway
+                onUserDecision?.invoke(true)
             }
         }
     }
 
-    /**
-     * Dismisses the overlay
-     */
     private fun dismissOverlay() {
         try {
             if (overlayView != null && isShowing) {
@@ -153,9 +144,6 @@ class WarningOverlayManager(private val context: Context) {
         }
     }
 
-    /**
-     * Checks if the app has overlay permission
-     */
     private fun hasOverlayPermission(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             Settings.canDrawOverlays(context)
@@ -164,19 +152,11 @@ class WarningOverlayManager(private val context: Context) {
         }
     }
 
-    /**
-     * Cleanup resources
-     */
     fun cleanup() {
         dismissOverlay()
         onUserDecision = null
         currentAnalysisResult = null
     }
 
-    /**
-     * Checks if overlay is currently showing
-     */
-    fun isOverlayShowing(): Boolean {
-        return isShowing
-    }
+    fun isOverlayShowing(): Boolean = isShowing
 }
