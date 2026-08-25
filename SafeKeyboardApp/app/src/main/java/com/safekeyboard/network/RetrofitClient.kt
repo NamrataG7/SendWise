@@ -84,4 +84,5 @@ object RetrofitClient {
         .build()
 
     val apiService: ApiService = retrofit.create(ApiService::class.java)
+    val pairingApiService: PairingApiService = retrofit.create(PairingApiService::class.java)
 }

@@ -58,7 +58,7 @@ export interface DashboardStats {
   totalIncidents: number;
   criticalIncidents: number;
   highPriorityIncidents: number;
-  messagesPrevent ed: number;
+  messagesPrevented: number;
   lastIncidentTime?: Date;
 }
 
