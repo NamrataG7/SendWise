@@ -38,7 +38,6 @@ export function createClient(cookieStore: CookieStore) {
       // and cookie rotation. We swallow the error so RSC reads don't crash.
       set(name: string, value: string, options: CookieOptions) {
         try {
-          // @ts-expect-error — set is only available on the mutable store
           cookieStore.set({ name, value, ...options });
         } catch {
           // no-op in read-only contexts
@@ -46,7 +45,6 @@ export function createClient(cookieStore: CookieStore) {
       },
       remove(name: string, options: CookieOptions) {
         try {
-          // @ts-expect-error — set is only available on the mutable store
           cookieStore.set({ name, value: '', ...options });
         } catch {
           // no-op in read-only contexts
