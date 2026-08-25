@@ -5,20 +5,27 @@ import Link from 'next/link';
 import IncidentCard from '@/components/IncidentCard';
 import StatsOverview from '@/components/StatsOverview';
 import CategoryFilter from '@/components/CategoryFilter';
-import { sampleChild, sampleIncidents, sampleStats } from '@/lib/sample-data';
-import { IncidentCategory } from '@/lib/types';
+import { IncidentCategory, Incident, DashboardStats } from '@/lib/types';
 
 type Props = {
   parentLabel: string;
+  childCount: number;
+  incidents: Incident[];
+  stats: DashboardStats;
 };
 
-export default function DashboardClient({ parentLabel }: Props) {
+export default function DashboardClient({
+  parentLabel,
+  childCount,
+  incidents,
+  stats,
+}: Props) {
   const [selectedCategories, setSelectedCategories] = useState<IncidentCategory[]>([
     'harassment',
     'threats',
     'hate_speech',
     'sexual_content',
-    'self_harm'
+    'self_harm',
   ]);
 
   const handleCategoryToggle = (category: IncidentCategory) => {
@@ -29,8 +36,12 @@ export default function DashboardClient({ parentLabel }: Props) {
     );
   };
 
+  const filteredIncidents = useMemo(
+    () => incidents.filter(inc => selectedCategories.includes(inc.category)),
+    [incidents, selectedCategories],
+  );
+
   const handleExportReport = () => {
-    // Generate CSV report
     // Privacy guarantee (SendWise paper §Privacy by Design):
     // Exported reports contain metadata only. Message content is analyzed on-device
     // and never leaves the child's device, so it is not — and cannot be — exported.
@@ -41,12 +52,12 @@ export default function DashboardClient({ parentLabel }: Props) {
       inc.category,
       inc.severity,
       inc.action,
-      inc.recommendation
+      inc.recommendation,
     ]);
 
     const csvContent = [
       headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(',')),
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -58,19 +69,19 @@ export default function DashboardClient({ parentLabel }: Props) {
     URL.revokeObjectURL(url);
   };
 
-  const filteredIncidents = useMemo(() => {
-    return sampleIncidents.filter(inc =>
-      selectedCategories.includes(inc.category)
-    );
-  }, [selectedCategories]);
-
-  const criticalIncidents = filteredIncidents.filter(inc =>
-    inc.severity === 'urgent' || inc.severity === 'critical'
+  const criticalIncidents = filteredIncidents.filter(
+    inc => inc.severity === 'urgent' || inc.severity === 'critical' || inc.severity === 'high',
+  );
+  const otherIncidents = filteredIncidents.filter(
+    inc => !(inc.severity === 'urgent' || inc.severity === 'critical' || inc.severity === 'high'),
   );
 
-  const otherIncidents = filteredIncidents.filter(inc =>
-    inc.severity !== 'urgent' && inc.severity !== 'critical'
-  );
+  const deviceLabel =
+    childCount === 1 ? '1 device linked' : `${childCount} devices linked`;
+
+  // State B: paired but zero incidents ever recorded.
+  const showEmptyIncidentsMessage =
+    incidents.length === 0 && stats.totalIncidents === 0 && childCount > 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -84,8 +95,8 @@ export default function DashboardClient({ parentLabel }: Props) {
             </div>
             <div className="flex items-center gap-4">
               <div className="text-right">
-                <p className="text-sm text-gray-600">Child</p>
-                <p className="font-semibold">{sampleChild.name} ({sampleChild.age})</p>
+                <p className="text-sm text-gray-600">Linked</p>
+                <p className="font-semibold">{deviceLabel}</p>
               </div>
               <Link
                 href="/insights"
@@ -107,7 +118,7 @@ export default function DashboardClient({ parentLabel }: Props) {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats Overview */}
-        <StatsOverview stats={sampleStats} />
+        <StatsOverview stats={stats} />
 
         {/* Data Limitation Disclaimer */}
         <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
@@ -136,9 +147,7 @@ export default function DashboardClient({ parentLabel }: Props) {
                 <p className="font-bold text-red-900">
                   {criticalIncidents.length} Critical Alert{criticalIncidents.length > 1 ? 's' : ''}
                 </p>
-                <p className="text-sm text-red-700">
-                  Requires immediate attention
-                </p>
+                <p className="text-sm text-red-700">Requires immediate attention</p>
               </div>
             </div>
             <button className="px-6 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition">
@@ -161,12 +170,23 @@ export default function DashboardClient({ parentLabel }: Props) {
           </p>
         </div>
 
+        {/* State B: paired, zero real data */}
+        {showEmptyIncidentsMessage && (
+          <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+            <span className="text-5xl mb-3 block">🌱</span>
+            <h3 className="text-xl font-bold text-gray-800 mb-2">
+              No incidents yet
+            </h3>
+            <p className="text-gray-600">
+              The dashboard will populate as your child uses SendWise.
+            </p>
+          </div>
+        )}
+
         {/* Critical Incidents Section */}
         {criticalIncidents.length > 0 && (
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">
-              🚨 Critical Incidents
-            </h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">🚨 Critical Incidents</h2>
             {criticalIncidents.map(incident => (
               <IncidentCard key={incident.id} incident={incident} />
             ))}
@@ -176,29 +196,27 @@ export default function DashboardClient({ parentLabel }: Props) {
         {/* Other Incidents */}
         {otherIncidents.length > 0 && (
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">
-              Recent Activity
-            </h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Recent Activity</h2>
             {otherIncidents.map(incident => (
               <IncidentCard key={incident.id} incident={incident} />
             ))}
           </div>
         )}
 
-        {/* Empty State */}
-        {filteredIncidents.length === 0 && (
-          <div className="text-center py-12">
-            <span className="text-6xl mb-4 block">✅</span>
-            <h3 className="text-2xl font-bold text-gray-700 mb-2">
-              No Incidents Found
-            </h3>
-            <p className="text-gray-600">
-              {selectedCategories.length === 5
-                ? 'Great news! No safety concerns detected recently.'
-                : 'Try adjusting your filters to see more incidents.'}
-            </p>
-          </div>
-        )}
+        {/* Filter-only empty state (has data overall but filter hides all) */}
+        {!showEmptyIncidentsMessage &&
+          filteredIncidents.length === 0 &&
+          incidents.length > 0 && (
+            <div className="text-center py-12">
+              <span className="text-6xl mb-4 block">🔍</span>
+              <h3 className="text-2xl font-bold text-gray-700 mb-2">
+                No Incidents Match Filter
+              </h3>
+              <p className="text-gray-600">
+                Try adjusting your filters to see more incidents.
+              </p>
+            </div>
+          )}
       </main>
 
       {/* Footer */}

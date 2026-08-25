@@ -23,6 +23,7 @@ import type {
   InsightsPayload,
   InsightsTrendPoint,
 } from '@/lib/insights-server-types';
+import type { Incident, DashboardStats } from '@/lib/types';
 
 export type {
   InsightsPayload,
@@ -154,5 +155,114 @@ export async function computeInsightsAggregate(
     categoryDistribution,
     severityDistribution,
     editedVsSent,
+  };
+}
+
+/**
+ * Recommendation copy shown alongside each real incident. Keyed by the
+ * canonical 5 categories the API accepts (see lib/schema.ts).
+ */
+const RECOMMENDATION_BY_CATEGORY: Record<IncidentCategoryT, string> = {
+  self_harm:
+    'URGENT: Contact emergency services (988 Suicide & Crisis Lifeline in US) if immediate danger. Reach out to your child with compassion.',
+  threats:
+    'Talk to your child about the incident. Consider contacting the school or law enforcement if threats persist.',
+  harassment:
+    'Discuss healthy communication with your child. Provide guidance on responding to conflict.',
+  hate_speech:
+    'Have a conversation about respect and inclusivity. Explain the impact of biased language.',
+  sexual_content:
+    'Talk about online safety and privacy. Ensure they know how to block/report unwanted contact.',
+};
+
+/**
+ * Build a display-ready incident list across one or more children by
+ * LRANGE-ing each `violations:{hash}` list, parsing, sorting newest-first,
+ * and capping at the 50 most-recent entries.
+ *
+ * Redis violations only carry metadata (no text) — the Incident type keeps
+ * `platform` because the UI expects it, but we set it to "other" since the
+ * ingest schema doesn't record platform.
+ */
+export async function computeIncidentList(
+  user_id_hashes: string[],
+): Promise<Incident[]> {
+  if (user_id_hashes.length === 0) return [];
+
+  const lists = await Promise.all(
+    user_id_hashes.map((h) => redis.lrange(`violations:${h}`, 0, -1)),
+  );
+
+  const all: Incident[] = [];
+  for (const raw of lists) {
+    for (let i = 0; i < raw.length; i++) {
+      let v: StoredViolation | null = null;
+      try {
+        v = JSON.parse(raw[i]) as StoredViolation;
+      } catch {
+        continue;
+      }
+      if (!v) continue;
+      const ts = new Date(v.timestamp);
+      if (Number.isNaN(ts.getTime())) continue;
+
+      all.push({
+        id: `${v.user_id_hash}:${v.session_id}:${v.timestamp}:${i}`,
+        childId: v.user_id_hash,
+        timestamp: ts,
+        // Ingest schema does not record platform; use a neutral display value.
+        platform: 'other',
+        category: v.category,
+        severity: v.severity,
+        action: v.action,
+        detections: [
+          {
+            type: v.category,
+            matches: [v.severity],
+          },
+        ],
+        recommendation:
+          RECOMMENDATION_BY_CATEGORY[v.category] ??
+          'Talk to your child about safe online communication.',
+      });
+    }
+  }
+
+  all.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+  return all.slice(0, 50);
+}
+
+/**
+ * Roll incidents into the 4 headline stats tiles on the dashboard home.
+ * Severity mapping (per ingest schema which uses low/medium/high):
+ *   - criticalIncidents     = severity === 'high'
+ *   - highPriorityIncidents = severity === 'medium'
+ *   - messagesPrevented     = action in {edited, cancelled, blocked}
+ */
+export function computeDashboardStats(incidents: Incident[]): DashboardStats {
+  let critical = 0;
+  let high = 0;
+  let prevented = 0;
+  let lastTs: Date | undefined;
+
+  for (const inc of incidents) {
+    if (inc.severity === 'high') critical += 1;
+    else if (inc.severity === 'medium') high += 1;
+    if (
+      inc.action === 'edited' ||
+      inc.action === 'cancelled' ||
+      inc.action === 'blocked'
+    ) {
+      prevented += 1;
+    }
+    if (!lastTs || inc.timestamp > lastTs) lastTs = inc.timestamp;
+  }
+
+  return {
+    totalIncidents: incidents.length,
+    criticalIncidents: critical,
+    highPriorityIncidents: high,
+    messagesPrevented: prevented,
+    lastIncidentTime: lastTs,
   };
 }
