@@ -15,7 +15,7 @@ android {
         versionName "1.0"
 
         // Default API base URL. Override per-buildType after Vercel deploy.
-        buildConfigField "String", "API_BASE_URL", "\"https://sendwise.vercel.app\""
+        buildConfigField "String", "API_BASE_URL", "\"https://sendwise-lac.vercel.app\""
         // Certificate pin (SPKI SHA-256, base64). Obtain via CERT_PINNING.md after Vercel deploy.
         buildConfigField "String", "CERT_PIN_SHA256", "\"PLACEHOLDER_UPDATE_AFTER_DEPLOY\""
     }
