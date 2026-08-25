@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { cookies } from 'next/headers';
+import { createClient } from '@/utils/supabase/server';
 import { getChildrenForParent } from '@/lib/parent-store';
 
 export const runtime = 'nodejs';
@@ -8,15 +8,16 @@ export const runtime = 'nodejs';
 /**
  * GET /api/parent/children
  * Returns the set of user_id_hashes linked to the authenticated parent.
- * Middleware also protects this path, but we re-check the session here
- * for defence in depth and to have the email available.
+ * Middleware also protects this path; we re-check here for defence in depth.
  */
 export async function GET() {
-  const session = await getServerSession(authOptions);
-  const email = session?.user?.email;
-  if (!email) {
+  const supabase = createClient(await cookies());
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  const children = await getChildrenForParent(email);
+  const children = await getChildrenForParent(user.id);
   return NextResponse.json({ children });
 }

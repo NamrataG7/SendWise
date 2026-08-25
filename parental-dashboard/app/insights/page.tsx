@@ -1,6 +1,7 @@
 import Link from 'next/link';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
+import { createClient } from '@/utils/supabase/server';
 import { getChildrenForParent } from '@/lib/parent-store';
 import { computeInsightsAggregate } from '@/lib/insights-server';
 import { emptyInsights, payloadToChartData } from '@/lib/insights-aggregates';
@@ -17,9 +18,14 @@ export const metadata = {
 export const dynamic = 'force-dynamic';
 
 export default async function InsightsPage() {
-  const session = await getServerSession(authOptions);
-  const parentEmail = session?.user?.email ?? '';
-  const children = parentEmail ? await getChildrenForParent(parentEmail) : [];
+  const supabase = createClient(await cookies());
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    redirect('/login?callbackUrl=/insights');
+  }
+  const children = await getChildrenForParent(user.id);
 
   const hasChildren = children.length > 0;
   const chartData = hasChildren

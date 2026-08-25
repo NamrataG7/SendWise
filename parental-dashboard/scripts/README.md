@@ -58,8 +58,10 @@ curl -X POST http://localhost:3000/api/dev/seed \
   -d '{"parent_email":"parent@example.com"}'
 ```
 
-Now log in at http://localhost:3000/login with `PARENT_EMAIL` / password and
-Fig 3 should render.
+Now sign up (or log in) at http://localhost:3000/signup with the same email
+you passed as `parent_email` — the seeder resolves it to your Supabase user
+UUID (requires `SUPABASE_SERVICE_ROLE_KEY`), or pass `parent_id` directly
+instead. Fig 3 should render once you sign in.
 
 ## Vercel demo deploy
 

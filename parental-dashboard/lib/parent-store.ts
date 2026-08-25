@@ -1,8 +1,18 @@
 /**
  * Parent → children lookup.
  *
- * Backed by Redis set `parent:{parent_id}:children` (populated by
+ * Backed by Redis set `parent:{parentId}:children` (populated by
  * /api/pairing/redeem). Server-only: relies on the redis singleton.
+ *
+ * NOTE (Supabase migration): `parentId` is now the Supabase user's UUID
+ * (from `auth.getUser().data.user.id`) — no longer an email address.
+ *
+ * Any pre-migration Redis keys of the form `parent:{email}:children` are
+ * effectively orphaned and unreachable, because the parent identifier has
+ * changed shape. This is intentional: at time of migration there were no
+ * real users, so we do not attempt a data migration. If you need one later,
+ * you would enumerate the old keys and rewrite them under the parent's
+ * Supabase UUID looked up via `auth.admin.listUsers()`.
  */
 
 if (typeof window !== 'undefined') {
@@ -13,35 +23,19 @@ if (typeof window !== 'undefined') {
 
 import { redis } from '@/lib/redis';
 
-/**
- * Normalise the parent identifier used as the Redis set key.
- * We store by lowercased email to match how NextAuth `authorize()` compares.
- */
 function parentKey(parentId: string): string {
-  return `parent:${parentId.trim().toLowerCase()}:children`;
+  return `parent:${parentId}:children`;
 }
 
 /**
- * Return the list of user_id_hashes linked to the given parent.
+ * Return the list of user_id_hashes linked to the given parent (by Supabase UUID).
  * Empty array when the parent has no linked children.
- *
- * Checks both the lowercased and raw email forms because
- * /api/pairing/redeem currently writes `parent:{parent_id}:children`
- * without normalising, while NextAuth compares email case-insensitively.
  */
 export async function getChildrenForParent(parentId: string): Promise<string[]> {
   if (!parentId) return [];
-  const lowered = parentId.trim().toLowerCase();
-  const raw = parentId.trim();
-  const keys = raw === lowered ? [parentKey(parentId)] : [
-    parentKey(parentId),
-    `parent:${raw}:children`,
-  ];
-  const results = await Promise.all(keys.map((k) => redis.smembers(k)));
-  const merged = new Set<string>();
-  for (const arr of results) for (const m of arr) merged.add(m);
+  const members = await redis.smembers(parentKey(parentId));
   // Defensive: only return well-formed user_id_hashes.
-  return Array.from(merged).filter((m) => /^[a-f0-9]{64}$/i.test(m));
+  return members.filter((m) => /^[a-f0-9]{64}$/i.test(m));
 }
 
 /**
@@ -49,8 +43,6 @@ export async function getChildrenForParent(parentId: string): Promise<string[]> 
  *
  * Used by read APIs (violations, insights) to prevent IDOR — any signed-in
  * parent must only be able to read data for children they have paired.
- *
- * Returns false for missing/invalid inputs rather than throwing.
  */
 export async function isChildOfParent(
   parentId: string | null | undefined,

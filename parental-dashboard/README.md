@@ -14,13 +14,14 @@ from the Android IME (never message content) and serves aggregated insights.
 
 ### Environment Variables
 
-| Variable               | Required | Description                                                                 |
-|------------------------|----------|-----------------------------------------------------------------------------|
-| `REDIS_URL`            | No*      | Redis connection string. If unset, falls back to an in-memory stub (dev).   |
-| `NEXTAUTH_SECRET`      | Yes      | Random secret for NextAuth JWT signing. Generate: `openssl rand -base64 32`.|
-| `NEXTAUTH_URL`         | Yes      | Public base URL of the dashboard (e.g. `http://localhost:3000`).            |
-| `PARENT_EMAIL`         | Yes      | The single parent account email (case-insensitive at login).                |
-| `PARENT_PASSWORD_HASH` | Yes      | bcrypt hash of the parent password.                                         |
+| Variable                              | Required | Description                                                                 |
+|---------------------------------------|----------|-----------------------------------------------------------------------------|
+| `REDIS_URL`                           | No*      | Redis connection string. If unset, falls back to an in-memory stub (dev).   |
+| `NEXT_PUBLIC_SUPABASE_URL`            | Yes      | Supabase project URL. Baked into the browser bundle.                        |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`| Yes      | Supabase publishable (anon) key. Baked into the browser bundle.             |
+| `SEED_TOKEN`                          | Yes (dev)| Shared secret for `/api/dev/seed`.                                          |
+| `ALLOW_SEED`                          | No       | Set to `true` in prod to enable `/api/dev/seed`. Otherwise 404 in prod.     |
+| `SUPABASE_SERVICE_ROLE_KEY`           | No       | Optional. Only needed if `/api/dev/seed` should resolve `parent_email`.     |
 
 \*Required in production. Use Vercel KV or Upstash Redis. See `.env.example`.
 
@@ -28,23 +29,35 @@ from the Android IME (never message content) and serves aggregated insights.
 
 ## 🔐 Authentication
 
-The dashboard uses **NextAuth (Credentials provider)** with a single env-based
-parent account. Session strategy is **JWT with a 24-hour max age**.
+The dashboard uses **Supabase Auth** (multi-parent, email + password). Sessions
+are stored as HTTP-only cookies and refreshed on every request by the root
+middleware via `@supabase/ssr`.
+
+Redis is **not** used for parent identity — only for violations, pairing codes,
+rate-limit counters, and the `parent:{user.id}:children` set.
 
 ### Setup
 
-1. Choose a password and generate a bcrypt hash:
-   ```bash
-   node -e "console.log(require('bcryptjs').hashSync('yourpassword', 10))"
-   ```
-2. Populate `.env.local`:
-   ```
-   NEXTAUTH_SECRET=$(openssl rand -base64 32)
-   NEXTAUTH_URL=http://localhost:3000
-   PARENT_EMAIL=parent@example.com
-   PARENT_PASSWORD_HASH='<paste bcrypt hash here>'
-   ```
-3. Start the dashboard and visit `/login`.
+1. In your Supabase project dashboard, ensure the **Email** provider is enabled
+   (Authentication → Providers). It is on by default in new projects.
+2. For a smoother demo, you may want to turn **off** "Confirm email"
+   (Authentication → Providers → Email) — otherwise `/signup` will require the
+   user to click a confirmation link before they can sign in.
+3. Copy `.env.example` → `.env.local` and fill in `NEXT_PUBLIC_SUPABASE_URL`
+   and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` from your Supabase project
+   settings (API section).
+4. Start the dashboard and visit `/signup` to create your first parent
+   account, then `/login` to sign in.
+
+### /signup flow
+
+- Visit `/signup`, enter email + password (min 8 chars).
+- The client calls `supabase.auth.signUp` with `emailRedirectTo` pointing at
+  `/auth/callback`.
+- If email confirmation is enabled, the user sees a "check your inbox" message.
+  The confirmation link takes them to `/auth/callback?code=…` which exchanges
+  the code for a session cookie and redirects to `/`.
+- If email confirmation is disabled, the user is signed in immediately.
 
 ### Protected routes
 
@@ -53,25 +66,27 @@ Middleware (`middleware.ts`) enforces auth on:
 - `/` (incident feed)
 - `/insights/*`
 - `/pair`
-- `GET /api/violations/*`
-- `GET /api/insights/*`
+- `GET /api/violations/[user_id_hash]`
+- `GET /api/insights/[user_id_hash]`
+- `GET /api/parent/*`
+- `POST /api/pairing/redeem`
 
 Unauthenticated requests to pages are redirected to `/login?callbackUrl=…`.
 API requests receive `401 { error: "Unauthorized" }`.
 
 ### Always public
 
-- `/login`, `/privacy`, `/terms`
-- `/api/auth/*` (NextAuth endpoints)
-- `/api/pairing/generate` and `/api/pairing/redeem`
-- `POST /api/violations` — device → server ingest, unauthenticated by design
-  (protected by the payload privacy guard, not by user auth)
+- `/login`, `/signup`, `/auth/callback`, `/privacy`, `/terms`
+- `/api/pairing/generate` and `POST /api/violations` (device → server)
+- `/api/dev/*` (token-gated; 404 in prod unless `ALLOW_SEED=true`)
 
 ### Pairing a child device
 
 Once signed in, visit `/pair`, enter the 6-digit code shown in the SendWise
 keyboard on the child device, and optionally give the child a display name.
-The redeem call uses the signed-in parent's email as `parent_id`.
+The redeem call uses the signed-in parent's Supabase UUID as `parent_id` —
+it is derived server-side from the session cookie and cannot be forged in
+the request body.
 
 ### Endpoints
 

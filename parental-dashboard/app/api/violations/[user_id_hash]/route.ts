@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { cookies } from 'next/headers';
+import { createClient } from '@/utils/supabase/server';
 import { isChildOfParent } from '@/lib/parent-store';
 import { redis } from '@/lib/redis';
 
@@ -10,12 +10,9 @@ export const runtime = 'nodejs';
  * GET /api/violations/[user_id_hash]
  *
  * Auth model:
- *   - Requires an authenticated parent session (401 otherwise).
+ *   - Requires an authenticated Supabase parent session (401 otherwise).
  *   - Parent must be linked to `user_id_hash` via the pairing set
- *     `parent:{email}:children` (403 otherwise).
- *
- * This closes the phase-1 IDOR where any signed-in parent could read any
- * child's violation stream just by knowing the hash.
+ *     `parent:{user.id}:children` (403 otherwise).
  */
 export async function GET(
   _req: NextRequest,
@@ -26,13 +23,15 @@ export async function GET(
     return NextResponse.json({ error: 'Invalid user_id_hash' }, { status: 400 });
   }
 
-  const session = await getServerSession(authOptions);
-  const email = session?.user?.email;
-  if (!email) {
+  const supabase = createClient(await cookies());
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const allowed = await isChildOfParent(email, user_id_hash);
+  const allowed = await isChildOfParent(user.id, user_id_hash);
   if (!allowed) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }

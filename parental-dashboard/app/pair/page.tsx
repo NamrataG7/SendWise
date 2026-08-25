@@ -1,38 +1,54 @@
-'use client'
+'use client';
 
-import { useState } from 'react'
-import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/utils/supabase/client';
+
+type AuthState = 'loading' | 'signed-in' | 'signed-out';
 
 export default function PairPage() {
-  const { data: session, status } = useSession()
-  const router = useRouter()
+  const router = useRouter();
+  const [authState, setAuthState] = useState<AuthState>('loading');
 
-  const [code, setCode] = useState('')
-  const [childName, setChildName] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [code, setCode] = useState('');
+  const [childName, setChildName] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const { data } = await supabase.auth.getUser();
+      if (cancelled) return;
+      if (!data.user) {
+        setAuthState('signed-out');
+        router.push(`/login?callbackUrl=${encodeURIComponent('/pair')}`);
+      } else {
+        setAuthState('signed-in');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   async function onSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError(null)
+    e.preventDefault();
+    setError(null);
 
-    const cleanCode = code.trim()
+    const cleanCode = code.trim();
     if (!/^\d{6}$/.test(cleanCode)) {
-      setError('Pairing code must be 6 digits.')
-      return
+      setError('Pairing code must be 6 digits.');
+      return;
     }
 
-    if (!session?.user?.email) {
-      setError('Not signed in.')
-      return
-    }
-
-    setLoading(true)
+    setLoading(true);
     try {
-      // parent_id is derived server-side from the session — do NOT send it
-      // in the body. The redeem route rejects any body containing parent_id.
+      // parent_id is derived server-side from the Supabase session — do NOT
+      // send it in the body. /api/pairing/redeem rejects any body key it
+      // doesn't expect.
       const res = await fetch('/api/pairing/redeem', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -40,38 +56,37 @@ export default function PairPage() {
           code: cleanCode,
           ...(childName.trim() ? { child_name: childName.trim() } : {}),
         }),
-      })
+      });
 
       if (res.status === 401) {
-        // Session was lost between page load and submit — bounce to login.
-        router.push(`/login?callbackUrl=${encodeURIComponent('/pair')}`)
-        return
+        router.push(`/login?callbackUrl=${encodeURIComponent('/pair')}`);
+        return;
       }
 
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        setError(body?.error || 'Could not redeem code. It may be invalid or expired.')
-        setLoading(false)
-        return
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        setError(body?.error || 'Could not redeem code. It may be invalid or expired.');
+        setLoading(false);
+        return;
       }
 
-      setSuccess(true)
+      setSuccess(true);
       setTimeout(() => {
-        router.push('/')
-        router.refresh()
-      }, 1500)
-    } catch (err) {
-      setError('Network error. Please try again.')
-      setLoading(false)
+        router.push('/');
+        router.refresh();
+      }, 1500);
+    } catch {
+      setError('Network error. Please try again.');
+      setLoading(false);
     }
   }
 
-  if (status === 'loading') {
+  if (authState !== 'signed-in') {
     return (
       <main className="min-h-screen flex items-center justify-center bg-gray-50">
         <p className="text-sm text-gray-500">Loading…</p>
       </main>
-    )
+    );
   }
 
   return (
@@ -139,5 +154,5 @@ export default function PairPage() {
         )}
       </div>
     </main>
-  )
+  );
 }

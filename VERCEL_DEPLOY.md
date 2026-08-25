@@ -8,7 +8,7 @@ This guide walks Namrata (or any reviewer) through deploying [`parental-dashboar
 
 - [x] Repository pushed to GitHub: [`NamrataG7/SendWise`](https://github.com/NamrataG7/SendWise)
 - [x] Vercel account: <https://vercel.com/namratag7s-projects>
-- [x] A password you will remember for the parent login
+- [x] A Supabase project (free tier is fine): <https://supabase.com/dashboard>
 
 You do **not** need Node, npm, or the Vercel CLI installed locally — the entire deployment happens in the Vercel web UI.
 
@@ -45,7 +45,7 @@ Vercel should have auto-detected **Next.js 14**. If it did not:
 
 ## Step 3 — Provision Vercel KV (Upstash Redis)
 
-The dashboard stores anonymised violation counters in Redis.
+The dashboard stores anonymised violation counters and pairing state in Redis.
 
 1. In your project, open the **Storage** tab
 2. Click **Create Database** → choose **KV** (Upstash Redis, free tier)
@@ -53,9 +53,9 @@ The dashboard stores anonymised violation counters in Redis.
 4. Click **Connect Project** → select the SendWise deployment → **Connect**
 
 > [!NOTE]
-> Vercel auto-injects the following env vars into your project:
-> `KV_URL`, `KV_REST_API_URL`, `KV_REST_API_TOKEN`, `KV_REST_API_READ_ONLY_TOKEN`, and `REDIS_URL`.
-> You do not need to copy them by hand.
+> Vercel auto-injects `KV_URL`, `KV_REST_API_URL`, `KV_REST_API_TOKEN`,
+> `KV_REST_API_READ_ONLY_TOKEN`, and `REDIS_URL`. You do not need to copy
+> them by hand.
 
 - [ ] KV database created
 - [ ] Attached to the SendWise project
@@ -63,58 +63,46 @@ The dashboard stores anonymised violation counters in Redis.
 
 ---
 
-## Step 4 — Set the remaining environment variables
+## Step 4 — Configure Supabase and set env vars
 
-Go to **Settings → Environment Variables** and add the following for **Production** (and **Preview** if you want PR previews to work):
+Parent identity / sessions live in **Supabase Auth** — Redis stores only
+violations, pairing codes, rate-limit counters, and the parent→children set.
 
-### 4a. `NEXTAUTH_SECRET`
+### 4a. Create / open the Supabase project
 
-Generate a 32-byte random secret:
+1. Open the Supabase dashboard for your project.
+2. **Authentication → Providers → Email**: ensure it is **enabled** (it is by
+   default in new projects).
+3. *(Optional — recommended for demo)*: turn **off** "Confirm email" so new
+   `/signup` accounts can sign in immediately without clicking a link.
+4. **Authentication → URL Configuration**: add your Vercel URL (e.g.
+   `https://sendwise.vercel.app`) to **Site URL** and to the
+   **Redirect URLs** allow-list (`https://sendwise.vercel.app/auth/callback`).
+5. Go to **Project Settings → API** and copy:
+   - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
+   - **Publishable / anon key** → `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 
-```bash
-openssl rand -base64 32
-```
+### 4b. Add the env vars in Vercel
 
-- [ ] Add `NEXTAUTH_SECRET` = *(paste the output)*
+Go to **Settings → Environment Variables** and add for **Production** (and
+**Preview** if you want PR previews to work):
 
-### 4b. `NEXTAUTH_URL`
+| Name                                    | Example / source                                       | Scope                |
+| --------------------------------------- | ------------------------------------------------------ | -------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`              | `https://aqcggqeeccoqwdxdkawm.supabase.co`             | Production, Preview  |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`  | `sb_publishable_…`                                     | Production, Preview  |
+| `REDIS_URL` *(auto)*                    | `rediss://…`                                           | Production, Preview  |
+| `SEED_TOKEN` *(dev only)*               | `openssl rand -hex 24`                                 | Preview (optional)   |
 
-Use the URL Vercel assigns. For a custom domain:
+> [!NOTE]
+> Vercel does **not** need `SUPABASE_SERVICE_ROLE_KEY` for normal dashboard
+> operation. The app authenticates parents entirely via the publishable
+> (anon) key + Supabase's cookie-based session. Only set the service role
+> key if you intend to use `/api/dev/seed` with `parent_email` lookup.
 
-```
-https://sendwise.vercel.app
-```
-
-- [ ] Add `NEXTAUTH_URL` = `https://sendwise.vercel.app` *(or the URL shown at the top of the project page)*
-
-### 4c. `PARENT_EMAIL`
-
-Pick the email address the parent will use to sign in.
-
-- [ ] Add `PARENT_EMAIL` = `parent@example.com`
-
-### 4d. `PARENT_PASSWORD_HASH`
-
-Never store the plaintext password. Hash it with bcrypt:
-
-```bash
-node -e "console.log(require('bcryptjs').hashSync('YOUR_PASSWORD', 10))"
-```
-
-> [!TIP]
-> If you don't have Node installed locally, run the command in a temporary [Vercel serverless function](https://vercel.com/docs/functions) or use any online bcrypt generator with cost factor `10`. Do not commit the plaintext anywhere.
-
-- [ ] Add `PARENT_PASSWORD_HASH` = `$2a$10$…` *(the full bcrypt hash)*
-
-### Environment variables checklist
-
-| Name | Example | Scope |
-| --- | --- | --- |
-| `NEXTAUTH_SECRET` | `k9…=` | Production, Preview |
-| `NEXTAUTH_URL` | `https://sendwise.vercel.app` | Production |
-| `PARENT_EMAIL` | `parent@example.com` | Production, Preview |
-| `PARENT_PASSWORD_HASH` | `$2a$10$…` | Production, Preview |
-| `REDIS_URL` *(auto)* | `rediss://…` | Production, Preview |
+- [ ] `NEXT_PUBLIC_SUPABASE_URL` set
+- [ ] `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` set
+- [ ] `REDIS_URL` visible (auto from Step 3)
 
 ---
 
@@ -127,7 +115,8 @@ node -e "console.log(require('bcryptjs').hashSync('YOUR_PASSWORD', 10))"
 
 - [ ] Build succeeded (green check)
 - [ ] Login page renders at `https://sendwise.vercel.app`
-- [ ] Sign in with `PARENT_EMAIL` + your plaintext password → dashboard loads
+- [ ] Click "Create one" → `/signup` → create a parent account
+- [ ] Sign in → dashboard loads
 
 ---
 
@@ -172,11 +161,12 @@ Then push to `main` — GitHub Actions will produce a fresh APK. See [`BUILD_APK
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
 | Build fails immediately with "No Next.js version detected" | Root Directory not set to `parental-dashboard` | Project Settings → General → Root Directory → `parental-dashboard` → Redeploy |
-| `[next-auth][error][NO_SECRET]` in build logs | `NEXTAUTH_SECRET` missing | Add env var (Step 4a) and redeploy |
-| Login returns 401 with correct password | `PARENT_PASSWORD_HASH` was hashed for a different password, or contains a shell-escaped `$` | Re-generate the hash and paste it exactly as printed (Vercel handles `$` correctly in env UI) |
+| `/signup` shows "Email signups are disabled" | Email provider disabled in Supabase | Authentication → Providers → Email → toggle on |
+| `/signup` succeeds but user can't log in until they check email | Email confirmation is on (default) | Either click the confirmation link, or disable "Confirm email" in Supabase for demos |
+| `/auth/callback` redirects to `/login?error=auth_callback_failed` | Vercel URL not in Supabase Redirect URLs allow-list | Supabase → Authentication → URL Configuration → add `https://sendwise.vercel.app/auth/callback` |
+| Login returns "Invalid login credentials" | Password mismatch / account not confirmed | Try `/signup` again, or reset password from Supabase dashboard |
 | Dashboard loads but shows "Redis connection failed" | KV not attached to project | Storage tab → Connect Project |
 | Android app can't reach API (`SSLPeerUnverifiedException`) | Cert pin mismatch after Vercel rotated certs | Repeat Step 6 and rebuild the APK |
-| `NEXTAUTH_URL` warning in logs | Value doesn't match the actual deployed URL | Update env var to the exact production URL, including `https://` |
 
 ---
 

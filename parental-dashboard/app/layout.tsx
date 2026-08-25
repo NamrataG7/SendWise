@@ -1,22 +1,19 @@
-import type { Metadata } from 'next'
-import './globals.css'
-import Providers from '@/components/Providers'
+import type { Metadata } from 'next';
+import './globals.css';
 
 export const metadata: Metadata = {
   title: 'SendWise Parental Dashboard',
   description: 'Comprehensive child safety monitoring',
-}
+};
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
     <html lang="en">
-      <body className="bg-gray-50">
-        <Providers>{children}</Providers>
-      </body>
+      <body className="bg-gray-50">{children}</body>
     </html>
-  )
+  );
 }

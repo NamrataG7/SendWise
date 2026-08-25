@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { cookies } from 'next/headers';
+import { createClient } from '@/utils/supabase/server';
 import { isChildOfParent } from '@/lib/parent-store';
 import { computeInsights } from '@/lib/insights-server';
 
@@ -10,7 +10,7 @@ export const runtime = 'nodejs';
  * GET /api/insights/[user_id_hash]
  *
  * Auth model matches /api/violations/[user_id_hash]:
- *   - 401 if no parent session.
+ *   - 401 if no Supabase parent session.
  *   - 403 if parent is not linked to this child.
  */
 export async function GET(
@@ -22,13 +22,15 @@ export async function GET(
     return NextResponse.json({ error: 'Invalid user_id_hash' }, { status: 400 });
   }
 
-  const session = await getServerSession(authOptions);
-  const email = session?.user?.email;
-  if (!email) {
+  const supabase = createClient(await cookies());
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const allowed = await isChildOfParent(email, user_id_hash);
+  const allowed = await isChildOfParent(user.id, user_id_hash);
   if (!allowed) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }

@@ -1,18 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 
-export default function LoginForm() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const callbackUrl = searchParams?.get('callbackUrl') || '/';
-
+export default function SignupForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [needsConfirm, setNeedsConfirm] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -20,21 +16,39 @@ export default function LoginForm() {
     setLoading(true);
     try {
       const supabase = createClient();
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
       });
-      if (signInError) {
-        setError(signInError.message || 'Invalid email or password.');
+      if (signUpError) {
+        setError(signUpError.message);
         setLoading(false);
         return;
       }
-      router.push(callbackUrl);
-      router.refresh();
+      // If email confirmation is required, `session` will be null.
+      if (!data.session) {
+        setNeedsConfirm(true);
+        setLoading(false);
+        return;
+      }
+      // Otherwise the user is signed in immediately.
+      window.location.assign('/');
     } catch {
       setError('Something went wrong. Please try again.');
       setLoading(false);
     }
+  }
+
+  if (needsConfirm) {
+    return (
+      <div className="text-sm text-green-700 bg-green-50 border border-green-100 rounded-lg px-4 py-3">
+        Check your inbox for a confirmation email. Once confirmed, you can{' '}
+        <a href="/login" className="underline font-medium">sign in</a>.
+      </div>
+    );
   }
 
   return (
@@ -62,12 +76,13 @@ export default function LoginForm() {
         <input
           id="password"
           type="password"
-          autoComplete="current-password"
+          autoComplete="new-password"
           required
+          minLength={8}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#6C3FE1] focus:border-transparent"
-          placeholder="••••••••"
+          placeholder="At least 8 characters"
         />
       </div>
 
@@ -82,7 +97,7 @@ export default function LoginForm() {
         disabled={loading}
         className="w-full rounded-lg bg-[#6C3FE1] hover:bg-[#5b34c7] disabled:bg-[#a58ce8] text-white text-sm font-semibold py-2.5 transition-colors"
       >
-        {loading ? 'Signing in…' : 'Sign in'}
+        {loading ? 'Creating account…' : 'Create account'}
       </button>
     </form>
   );
