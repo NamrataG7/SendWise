@@ -58,3 +58,51 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  dashboard-typecheck:
+    name: Parental Dashboard TypeScript check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dashboard dependencies
+        working-directory: parental-dashboard
+        run: npm install
+
+      - name: TypeScript --noEmit
+        working-directory: parental-dashboard
+        run: npx tsc --noEmit
+
+  reproduce-model:
+    name: Reproduce SendWise RF model
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install training dependencies
+        run: pip install -r model_training/requirements.txt
+
+      - name: Train Random Forest
+        run: python model_training/train_sendwise_rf.py
+
+      - name: Upload training report + model card
+        uses: actions/upload-artifact@v4
+        with:
+          name: sendwise-model-repro
+          path: |
+            model_training/training_report.md
+            model_training/MODEL_CARD.json
+          retention-days: 90

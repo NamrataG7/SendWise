@@ -6,6 +6,19 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node](https://img.shields.io/badge/Node-20.x-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Kotlin](https://img.shields.io/badge/Kotlin-1.9-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![scikit-learn](https://img.shields.io/badge/scikit--learn-1.5.2-F7931E?logo=scikitlearn&logoColor=white)](https://scikit-learn.org/)
+[![Android API](https://img.shields.io/badge/Android_API-34-3DDC84?logo=android&logoColor=white)](https://developer.android.com/)
+
+---
+
+## Quick Start
+
+- **Deploy the parental dashboard to Vercel** → [`VERCEL_DEPLOY.md`](VERCEL_DEPLOY.md)
+- **Install the APK on an Android device (Redmi Note 7 Pro walkthrough)** → [`INSTALL_ON_REDMI.md`](INSTALL_ON_REDMI.md)
+- **Build the APK without a local Android Studio** → [`BUILD_APK.md`](BUILD_APK.md)
+- **Contribute / run locally** → [`CONTRIBUTING.md`](CONTRIBUTING.md)
 
 ---
 
@@ -59,7 +72,7 @@ Python pipeline that trains the Random Forest classifier shipped inside the APK.
 
 ## Reproducibility
 
-Metrics reported in the paper (Random Forest, `sendwise_dataset.csv`, 20,122 rows, 80/20 stratified split):
+Metrics reported in the paper (Random Forest, `SendWise_Dataset.csv`, 20,122 rows, stratified 75:25 split):
 
 | Metric | Value |
 | --- | --- |
@@ -67,7 +80,15 @@ Metrics reported in the paper (Random Forest, `sendwise_dataset.csv`, 20,122 row
 | Recall | **95.73** |
 | F1 | **90.58** |
 
-Retraining is deterministic (fixed `random_state=42`); see [`model_training/MODEL_TRAINING.md`](model_training/MODEL_TRAINING.md) for the exact environment and command.
+Retraining is deterministic (fixed `random_state=42`). Reproduce end-to-end with three commands:
+
+```bash
+git clone https://github.com/NamrataG7/SendWise.git
+pip install -r SendWise/model_training/requirements.txt
+python SendWise/model_training/train_sendwise_rf.py
+```
+
+Outputs land in `model_training/training_report.md` and `model_training/MODEL_CARD.json`. Dataset provenance and schema: [`model_training/data/DATASET_CARD.md`](model_training/data/DATASET_CARD.md). Full environment notes: [`model_training/MODEL_TRAINING.md`](model_training/MODEL_TRAINING.md).
 
 ---
 
@@ -103,10 +124,10 @@ Released under the [MIT License](https://opensource.org/licenses/MIT).
 ## Citation
 
 ```bibtex
-@article{ganesan2026sendwise,
+@article{gaikwad2026sendwise,
   title   = {SendWise: Privacy-Preserving Parental Awareness of Adolescent
              Cyberbullying Risk through On-Device Pre-Send Intervention},
-  author  = {Ganesan, Namrata and collaborators},
+  author  = {Gaikwad, Namrata M. and Ohatkar, Sharada},
   journal = {(under review)},
   year    = {2026},
   doi     = {10.XXXX/XXXXXXX}
