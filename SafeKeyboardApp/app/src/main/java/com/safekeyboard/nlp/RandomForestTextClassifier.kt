@@ -227,15 +227,40 @@ class RandomForestTextClassifier private constructor(
             val rArr = o.getJSONArray("children_right")
             val vArr = o.getJSONArray("value")
             val n = fArr.length()
-            val feature = IntArray(n) { fArr.getInt(it) }
-            val threshold = DoubleArray(n) { tArr.getDouble(it) }
-            val left = IntArray(n) { lArr.getInt(it) }
-            val right = IntArray(n) { rArr.getInt(it) }
+            // Widen to Long then narrow to Int so we accept JSON numbers that
+            // the parser boxed as Long (>2^31) or Double (e.g. -1.0 for leaf
+            // sentinels emitted by some sklearn exporters).
+            val feature = IntArray(n) { safeInt(fArr.get(it)) }
+            val threshold = DoubleArray(n) { safeDouble(tArr.get(it)) }
+            val left = IntArray(n) { safeInt(lArr.get(it)) }
+            val right = IntArray(n) { safeInt(rArr.get(it)) }
             val value = Array(n) { i ->
                 val row = vArr.getJSONArray(i)
-                DoubleArray(row.length()) { j -> row.getDouble(j) }
+                DoubleArray(row.length()) { j -> safeDouble(row.get(j)) }
             }
             return Tree(feature, threshold, left, right, value)
+        }
+
+        /**
+         * Robust number->Int coercion. JSON parser may box small integers
+         * as Integer, larger as Long, and floats as Double. We accept all.
+         */
+        private fun safeInt(v: Any?): Int = when (v) {
+            is Int -> v
+            is Long -> v.toInt()
+            is Double -> v.toInt()
+            is Number -> v.toInt()
+            is String -> v.toInt()
+            else -> throw ClassCastException("cannot cast ${v?.javaClass?.name} to Int")
+        }
+
+        private fun safeDouble(v: Any?): Double = when (v) {
+            is Double -> v
+            is Int -> v.toDouble()
+            is Long -> v.toDouble()
+            is Number -> v.toDouble()
+            is String -> v.toDouble()
+            else -> throw ClassCastException("cannot cast ${v?.javaClass?.name} to Double")
         }
 
         // Silence unused-import warning if ln() ever gets removed above.

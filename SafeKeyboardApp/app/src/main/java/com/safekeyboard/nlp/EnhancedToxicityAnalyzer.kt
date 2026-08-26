@@ -133,7 +133,9 @@ class EnhancedToxicityAnalyzer(private val context: Context) {
         // Priority 0: Hard-trigger profanity short-circuit — guarantees the popup
         // fires for unambiguously abusive words regardless of RF / lexicon /
         // threshold state. Isolates keyboard-lifecycle bugs from analyzer bugs.
-        val hardHit = detectHardProfanity(message)
+        val hardHit = try { detectHardProfanity(message) } catch (t: Throwable) {
+            Log.w(DETECT_TAG, "detectHardProfanity threw: ${t.message}", t); null
+        }
         if (hardHit != null) {
             Log.d(DETECT_TAG, "HARD-TRIGGER hit=\"$hardHit\" text=${message.take(80)}")
             return AnalysisResult(
@@ -146,17 +148,43 @@ class EnhancedToxicityAnalyzer(private val context: Context) {
             )
         }
 
-        // Priority 1: RandomForest binary risk classifier (the paper's actual method).
-        val rfResult = tryRandomForest(message, sensitivity)
+        // Priority 1: RandomForest binary risk classifier (the paper's actual
+        // method). Wrapped in an OUTER try/catch to defend against exceptions
+        // thrown from the `by lazy` initializer (JSON parse errors, ClassCast,
+        // etc.) which bypass the inner try/catch in tryRandomForest.
+        val rfResult = try {
+            tryRandomForest(message, sensitivity)
+        } catch (t: Throwable) {
+            Log.w(DETECT_TAG, "RF outer catch: ${t.javaClass.simpleName}: ${t.message}", t)
+            null
+        }
         if (rfResult != null) {
-            val enriched = maybeAttachWebViewCategory(rfResult, message, sensitivity, platform)
+            val enriched = try {
+                maybeAttachWebViewCategory(rfResult, message, sensitivity, platform)
+            } catch (t: Throwable) {
+                Log.w(DETECT_TAG, "WebView enrich threw, using RF result as-is: ${t.message}")
+                rfResult
+            }
             Log.d(DETECT_TAG, "Final toxicityScore=${enriched.toxicityScore} " +
                 "isToxic=${enriched.isToxic} category=${enriched.category} source=RF")
             return enriched
         }
 
-        // Priority 2: Deterministic lexicon fallback. Guaranteed to run.
-        val fallback = useFallbackAnalyzer(message, sensitivity)
+        // Priority 2: Deterministic lexicon fallback. Guaranteed to run even if
+        // the analyzer itself throws — worst case we return a "clean" result.
+        val fallback = try {
+            useFallbackAnalyzer(message, sensitivity)
+        } catch (t: Throwable) {
+            Log.w(DETECT_TAG, "Lexicon fallback threw: ${t.message}", t)
+            AnalysisResult(
+                toxicityScore = 0.0f,
+                originalScore = 0.0f,
+                category = ToxicityAnalyzer.CATEGORY_NONE,
+                severity = "none",
+                isToxic = false,
+                usingEnhanced = false
+            )
+        }
         Log.d(DETECT_TAG, "Final toxicityScore=${fallback.toxicityScore} " +
             "isToxic=${fallback.isToxic} category=${fallback.category} source=LEXICON")
         return fallback
