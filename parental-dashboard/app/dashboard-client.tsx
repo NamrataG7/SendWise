@@ -6,11 +6,13 @@ import IncidentCard from '@/components/IncidentCard';
 import StatsOverview from '@/components/StatsOverview';
 import CategoryFilter from '@/components/CategoryFilter';
 import SignOutButton from '@/components/SignOutButton';
+import UnlinkDeviceButton from '@/components/UnlinkDeviceButton';
 import { IncidentCategory, Incident, DashboardStats } from '@/lib/types';
 
 type Props = {
   parentLabel: string;
   childCount: number;
+  childHashes: string[];
   incidents: Incident[];
   stats: DashboardStats;
 };
@@ -18,6 +20,7 @@ type Props = {
 export default function DashboardClient({
   parentLabel,
   childCount,
+  childHashes,
   incidents,
   stats,
 }: Props) {
@@ -111,6 +114,7 @@ export default function DashboardClient({
               >
                 📥 Export Report
               </button>
+              <UnlinkDeviceButton childHashes={childHashes} />
               <SignOutButton />
             </div>
           </div>

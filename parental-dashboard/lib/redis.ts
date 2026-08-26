@@ -26,6 +26,7 @@ export interface RedisLike {
   get(key: string): Promise<string | null>;
   del(key: string): Promise<number>;
   sadd(key: string, ...members: string[]): Promise<number>;
+  srem(key: string, ...members: string[]): Promise<number>;
   smembers(key: string): Promise<string[]>;
 }
 
@@ -154,6 +155,19 @@ class InMemoryRedis implements RedisLike {
     }
     this.store.set(key, { type: 'set', value: set, expiresAt: entry?.expiresAt });
     return added;
+  }
+
+  async srem(key: string, ...members: string[]): Promise<number> {
+    const entry = this.getEntry(key);
+    if (!entry || entry.type !== 'set') return 0;
+    let removed = 0;
+    for (const m of members) {
+      if (entry.value.delete(m)) removed += 1;
+    }
+    if (entry.value.size === 0) {
+      this.store.delete(key);
+    }
+    return removed;
   }
 
   async smembers(key: string): Promise<string[]> {

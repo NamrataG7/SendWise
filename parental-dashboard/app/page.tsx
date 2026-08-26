@@ -69,6 +69,7 @@ export default async function DashboardPage() {
     <DashboardClient
       parentLabel={parentLabel}
       childCount={children.length}
+      childHashes={children}
       incidents={incidents}
       stats={stats}
     />

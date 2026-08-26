@@ -53,3 +53,28 @@ export async function isChildOfParent(
   const children = await getChildrenForParent(parentId);
   return children.includes(user_id_hash);
 }
+
+/**
+ * Remove a child device from the parent's linked set. Also wipes the
+ * child's violation history (privacy hygiene — orphaned records under
+ * an unpaired hash serve no purpose and could leak data if the same hash
+ * is later re-paired to a different parent).
+ *
+ * Returns { removed: number, hadHistory: boolean } for UI feedback.
+ */
+export async function unlinkChild(
+  parentId: string,
+  user_id_hash: string,
+): Promise<{ removed: number; hadHistory: boolean }> {
+  if (!parentId || !user_id_hash) return { removed: 0, hadHistory: false };
+  if (!/^[a-f0-9]{64}$/i.test(user_id_hash)) {
+    return { removed: 0, hadHistory: false };
+  }
+  const removed = await redis.srem(parentKey(parentId), user_id_hash);
+  const violationsKey = `violations:${user_id_hash}`;
+  const hadHistory = (await redis.llen(violationsKey)) > 0;
+  if (hadHistory) {
+    await redis.del(violationsKey);
+  }
+  return { removed, hadHistory };
+}
