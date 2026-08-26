@@ -196,17 +196,25 @@ class PairingActivity : AppCompatActivity() {
                     )
                 }
                 val body = response.body()
-                if (response.isSuccessful && body != null && body.success &&
-                    !body.code.isNullOrBlank() && body.expires_at != null &&
-                    body.expires_at > System.currentTimeMillis()
+                val expiresAtMs = body?.expires_at?.let { parseIso8601ToMillis(it) }
+                if (response.isSuccessful && body != null &&
+                    !body.code.isNullOrBlank() && expiresAtMs != null &&
+                    expiresAtMs > System.currentTimeMillis()
                 ) {
-                    PairingOutcome.Success(body.code, body.expires_at)
+                    PairingOutcome.Success(body.code, expiresAtMs)
                 } else {
+                    android.util.Log.w(
+                        "PairingActivity",
+                        "Pairing failed: http=${response.code()} code=${body?.code} " +
+                            "expires_at=${body?.expires_at} parsed=$expiresAtMs error=${body?.error}"
+                    )
                     PairingOutcome.Failure(getString(R.string.pairing_error_generic))
                 }
             } catch (io: IOException) {
+                android.util.Log.w("PairingActivity", "Pairing network error", io)
                 PairingOutcome.Failure(getString(R.string.pairing_error_network))
             } catch (t: Throwable) {
+                android.util.Log.w("PairingActivity", "Pairing unexpected error", t)
                 PairingOutcome.Failure(getString(R.string.pairing_error_generic))
             }
 
@@ -251,5 +259,18 @@ class PairingActivity : AppCompatActivity() {
     private sealed class PairingOutcome {
         data class Success(val code: String, val expiresAt: Long) : PairingOutcome()
         data class Failure(val message: String) : PairingOutcome()
+    }
+
+    /**
+     * Parse an ISO 8601 UTC string like "2026-08-25T17:45:11.242Z" into
+     * epoch millis. Returns null on any parse failure so the caller can
+     * surface a generic error instead of crashing.
+     */
+    private fun parseIso8601ToMillis(iso: String): Long? = try {
+        val instant = java.time.Instant.parse(iso)
+        instant.toEpochMilli()
+    } catch (t: Throwable) {
+        android.util.Log.w("PairingActivity", "Failed to parse expires_at: $iso", t)
+        null
     }
 }
