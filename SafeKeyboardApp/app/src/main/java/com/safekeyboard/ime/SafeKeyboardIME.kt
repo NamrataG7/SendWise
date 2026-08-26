@@ -206,7 +206,6 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
         if (cls == InputType.TYPE_CLASS_TEXT && (
                 variation == InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS ||
                 variation == InputType.TYPE_TEXT_VARIATION_EMAIL_SUBJECT ||
-                variation == InputType.TYPE_TEXT_VARIATION_PHONE ||
                 variation == InputType.TYPE_TEXT_VARIATION_URI
             )
         ) {
