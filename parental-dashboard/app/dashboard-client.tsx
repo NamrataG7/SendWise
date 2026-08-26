@@ -5,6 +5,7 @@ import Link from 'next/link';
 import IncidentCard from '@/components/IncidentCard';
 import StatsOverview from '@/components/StatsOverview';
 import CategoryFilter from '@/components/CategoryFilter';
+import SignOutButton from '@/components/SignOutButton';
 import { IncidentCategory, Incident, DashboardStats } from '@/lib/types';
 
 type Props = {
@@ -110,6 +111,7 @@ export default function DashboardClient({
               >
                 📥 Export Report
               </button>
+              <SignOutButton />
             </div>
           </div>
         </div>
