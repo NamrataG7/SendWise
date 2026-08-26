@@ -74,8 +74,25 @@ class SuggestionStripView @JvmOverloads constructor(
 
     fun clear() {
         suggestions = emptyList()
+        bannerText = null
         invalidate()
     }
+
+    /**
+     * Diagnostic banner — replaces suggestions with a coloured status
+     * message drawn INSIDE the keyboard bar (guaranteed to render, no
+     * overlay/notification/Toast permissions required).
+     *
+     *  color=0 -> gray/info,  1 -> red/risk,  2 -> orange/warn,  3 -> green/ok
+     */
+    fun showBanner(text: String, color: Int) {
+        bannerText = text
+        bannerColor = color
+        invalidate()
+    }
+
+    private var bannerText: String? = null
+    private var bannerColor: Int = 0
 
     private fun computeSuggestions(prefix: String): List<String> {
         // Skip exact matches — no value suggesting the word already typed.
@@ -92,6 +109,37 @@ class SuggestionStripView @JvmOverloads constructor(
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+
+        // Diagnostic banner takes over the whole strip. Guaranteed to render.
+        val b = bannerText
+        if (b != null) {
+            val w = width.toFloat()
+            val h = height.toFloat()
+            val bg = when (bannerColor) {
+                1 -> 0xFFFEE2E2.toInt()   // red-tinted
+                2 -> 0xFFFEF3C7.toInt()   // orange-tinted
+                3 -> 0xFFD1FAE5.toInt()   // green-tinted
+                else -> 0xFFE5E7EB.toInt() // gray
+            }
+            val fg = when (bannerColor) {
+                1 -> 0xFF991B1B.toInt()
+                2 -> 0xFF92400E.toInt()
+                3 -> 0xFF065F46.toInt()
+                else -> 0xFF374151.toInt()
+            }
+            val bgPaint = android.graphics.Paint().apply { color = bg }
+            canvas.drawRect(0f, 0f, w, h, bgPaint)
+            val prevColor = textPaint.color
+            val prevBold = textPaint.isFakeBoldText
+            textPaint.color = fg
+            textPaint.isFakeBoldText = true
+            val baseY = h / 2f - (textPaint.descent() + textPaint.ascent()) / 2f
+            canvas.drawText(b, w / 2f, baseY, textPaint)
+            textPaint.color = prevColor
+            textPaint.isFakeBoldText = prevBold
+            return
+        }
+
         if (suggestions.isEmpty()) return
 
         val w = width.toFloat()

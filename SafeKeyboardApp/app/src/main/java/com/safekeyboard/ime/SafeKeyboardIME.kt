@@ -746,11 +746,17 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
      * the warning overlay if score >= 0.5.
      */
     private fun scheduleLiveAnalysis() {
-        if (!preferencesManager.isModerationEnabled()) return
-        if (!analysisEnabledForField) {
-            Log.d(TAG, "Live skipped: sensitive field")
+        if (!preferencesManager.isModerationEnabled()) {
+            suggestionStrip?.showBanner("SW off (moderation disabled)", 2)
             return
         }
+        if (!analysisEnabledForField) {
+            Log.d(TAG, "Live skipped: sensitive field")
+            suggestionStrip?.showBanner("SW off (sensitive field)", 2)
+            return
+        }
+
+        suggestionStrip?.showBanner("SW: scheduling…", 0)
 
         // Cancel any pending analysis — user is still typing.
         pendingLiveAnalysis?.let { liveDebounceHandler.removeCallbacks(it) }
@@ -761,6 +767,7 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
 
             if (text.length < MIN_CHARS_FOR_LIVE || wordCount < MIN_WORDS_FOR_LIVE) {
                 Log.w(TAG, "Live analyze skipped: too short/few words len=${text.length} words=$wordCount")
+                suggestionStrip?.showBanner("SW: need ${MIN_CHARS_FOR_LIVE}c/${MIN_WORDS_FOR_LIVE}w (have ${text.length}c/${wordCount}w)", 2)
                 return@Runnable
             }
             if (text == lastLiveAnalyzedText) {
@@ -773,6 +780,7 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
             }
 
             lastLiveAnalyzedText = text
+            suggestionStrip?.showBanner("SW: analyzing ${text.length}c…", 0)
 
             // Off UI thread for classifier, then back on for overlay.
             serviceScope.launch(Dispatchers.Default) {
@@ -783,18 +791,27 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
                         platform = getPlatformFromPackage(currentAppPackage)
                     )
                     Log.d(TAG, "Live analyzed len=${text.length} score=${result.toxicityScore}")
-                    if (result.toxicityScore >= 0.5f) {
-                        withContext(Dispatchers.Main) {
+                    withContext(Dispatchers.Main) {
+                        if (result.toxicityScore >= 0.5f) {
+                            suggestionStrip?.showBanner(
+                                "\u26A0 RISK ${(result.toxicityScore * 100).toInt()}% ${result.category}",
+                                1
+                            )
                             if (!overlayManager.isOverlayShowing()) {
                                 showWarningPopup(result)
                             } else {
                                 Log.w(TAG, "Live analyze skipped: overlay_shown_during_analysis")
                             }
+                        } else {
+                            suggestionStrip?.showBanner("\u2713 SW ok (${(result.toxicityScore * 100).toInt()}%)", 3)
                         }
                     }
                 } catch (e: Exception) {
                     // Fail open.
                     e.printStackTrace()
+                    withContext(Dispatchers.Main) {
+                        suggestionStrip?.showBanner("SW error: ${e.message?.take(40)}", 2)
+                    }
                 }
             }
         }
