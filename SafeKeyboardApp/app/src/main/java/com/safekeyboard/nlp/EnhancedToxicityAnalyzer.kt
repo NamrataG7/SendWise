@@ -56,6 +56,36 @@ class EnhancedToxicityAnalyzer(private val context: Context) {
     private val webViewBridge: WebViewBridge = WebViewBridge(context)
     private val fallbackAnalyzer: ToxicityAnalyzer = ToxicityAnalyzer(context)
 
+    /**
+     * Hard-trigger short-circuit list. Any occurrence of these tokens as a
+     * standalone word (case-insensitive, punctuation-tolerant) fires the
+     * warning overlay immediately with score=1.0 — no RF, no lexicon, no
+     * thresholds, no debounce dependency. Guarantees the detection path
+     * is functional even if RF fails to load or lexicon regresses.
+     */
+    private val HARD_TRIGGER_WORDS = setOf(
+        "stupid", "idiot", "moron", "retard", "loser", "ugly", "worthless",
+        "bitch", "bastard", "asshole", "motherfucker", "fuck", "fucker",
+        "fucking", "fucked", "shit", "damn", "prick", "dick", "dickhead",
+        "cunt", "slut", "whore", "hoe", "dumbass", "faggot", "nigger",
+        "kys", "die", "kill yourself", "hate you", "nobody likes you"
+    )
+
+    private fun detectHardProfanity(message: String): String? {
+        val lc = message.lowercase()
+        for (word in HARD_TRIGGER_WORDS) {
+            if (word.contains(' ')) {
+                // multi-word phrase — substring match
+                if (lc.contains(word)) return word
+            } else {
+                // single word — bounded by non-letter or start/end
+                val re = Regex("(^|[^a-z])${Regex.escape(word)}([^a-z]|$)")
+                if (re.containsMatchIn(lc)) return word
+            }
+        }
+        return null
+    }
+
     // Paper's actual method: TF-IDF + RandomForest. Loaded lazily on first use
     // (which happens on Dispatchers.Default from the IME, so this won't ANR
     // the input-method main thread on service start).
@@ -99,6 +129,22 @@ class EnhancedToxicityAnalyzer(private val context: Context) {
         platform: String = ""
     ): AnalysisResult {
         Log.v(DETECT_TAG, "analyzeMessage text.len=${message.length} sensitivity=$sensitivity")
+
+        // Priority 0: Hard-trigger profanity short-circuit — guarantees the popup
+        // fires for unambiguously abusive words regardless of RF / lexicon /
+        // threshold state. Isolates keyboard-lifecycle bugs from analyzer bugs.
+        val hardHit = detectHardProfanity(message)
+        if (hardHit != null) {
+            Log.d(DETECT_TAG, "HARD-TRIGGER hit=\"$hardHit\" text=${message.take(80)}")
+            return AnalysisResult(
+                toxicityScore = 1.0f,
+                originalScore = 1.0f,
+                category = ToxicityAnalyzer.CATEGORY_HARASSMENT,
+                severity = "high",
+                isToxic = true,
+                usingEnhanced = false
+            )
+        }
 
         // Priority 1: RandomForest binary risk classifier (the paper's actual method).
         val rfResult = tryRandomForest(message, sensitivity)

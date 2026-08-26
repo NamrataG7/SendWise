@@ -131,8 +131,8 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
 
     companion object {
         private const val TAG = "SafeKeyboardIME"
-        private const val MIN_CHARS_FOR_LIVE = 25
-        private const val MIN_WORDS_FOR_LIVE = 4
+        private const val MIN_CHARS_FOR_LIVE = 8
+        private const val MIN_WORDS_FOR_LIVE = 2
 
         // Packages where we ALWAYS skip analysis + buffer capture, even if
         // the input field looks benign.
