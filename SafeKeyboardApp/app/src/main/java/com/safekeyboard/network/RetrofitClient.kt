@@ -36,7 +36,7 @@ object RetrofitClient {
     /** Extract host portion from BASE_URL for pinning. */
     private val apiHost: String = runCatching { URI(BASE_URL).host }
         .getOrNull()
-        ?: "sendwise.vercel.app"
+        ?: "sendwise-lac.vercel.app"
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
         level = if (BuildConfig.DEBUG) {
