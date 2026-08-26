@@ -54,11 +54,16 @@ class ToxicityAnalyzer(private val context: Context) {
 
     // Toxicity lexicons by category
     private val harassmentTerms = setOf(
-        // Harassment patterns
+        // Harassment patterns / common English profanity
         "loser", "idiot", "stupid", "dumb", "pathetic", "worthless",
         "waste", "failure", "ugly", "fat", "disgusting", "shut up",
         "nobody likes", "everyone hates", "kill yourself", "kys",
-        "die", "disappear", "nobody cares"
+        "die", "disappear", "nobody cares", "hate you", "retard", "retarded",
+        // Profanity / slurs commonly used in personal attacks
+        "bitch", "bastard", "asshole", "ass hole", "motherfucker", "mother fucker",
+        "fuck", "fucker", "fucking", "shit", "piece of shit", "damn", "dumbass",
+        "jackass", "prick", "dick", "dickhead", "cunt", "twat",
+        "slut", "whore", "hoe", "skank"
     )
 
     private val hateTerms = setOf(

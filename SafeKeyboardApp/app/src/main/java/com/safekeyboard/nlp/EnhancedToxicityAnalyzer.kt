@@ -23,6 +23,7 @@ class EnhancedToxicityAnalyzer(private val context: Context) {
 
     companion object {
         private const val TAG = "EnhancedToxicityAnalyzer"
+        private const val DETECT_TAG = "SendWiseDetect"
         private const val DEFAULT_SENSITIVITY = 0.5
     }
 
@@ -55,6 +56,35 @@ class EnhancedToxicityAnalyzer(private val context: Context) {
     private val webViewBridge: WebViewBridge = WebViewBridge(context)
     private val fallbackAnalyzer: ToxicityAnalyzer = ToxicityAnalyzer(context)
 
+    // Paper's actual method: TF-IDF + RandomForest. Loaded lazily on first use
+    // (which happens on Dispatchers.Default from the IME, so this won't ANR
+    // the input-method main thread on service start).
+    // See assets/models/sendwise_rf_v1.json.gz (binary risk) and
+    // sendwise_category_v1.json.gz (5-way category over risk-positive rows).
+    private val rfBinary: RandomForestTextClassifier? by lazy {
+        try {
+            val clf = RandomForestTextClassifier.load(context, "sendwise_rf_v1.json.gz")
+            Log.i(DETECT_TAG, "RF binary loaded: ${clf.modelName} v${clf.version} " +
+                "task=${clf.task} classes=${clf.classes} threshold=${clf.threshold}")
+            clf
+        } catch (t: Throwable) {
+            Log.w(DETECT_TAG, "RF binary failed to load: ${t.message}", t)
+            null
+        }
+    }
+
+    private val rfCategory: RandomForestTextClassifier? by lazy {
+        try {
+            val clf = RandomForestTextClassifier.load(context, "sendwise_category_v1.json.gz")
+            Log.i(DETECT_TAG, "RF category loaded: ${clf.modelName} v${clf.version} " +
+                "task=${clf.task} classes=${clf.classes}")
+            clf
+        } catch (t: Throwable) {
+            Log.w(DETECT_TAG, "RF category failed to load: ${t.message}", t)
+            null
+        }
+    }
+
     /**
      * Analyze a message for toxicity
      *
@@ -68,19 +98,129 @@ class EnhancedToxicityAnalyzer(private val context: Context) {
         sensitivity: Double = DEFAULT_SENSITIVITY,
         platform: String = ""
     ): AnalysisResult {
+        Log.v(DETECT_TAG, "analyzeMessage text.len=${message.length} sensitivity=$sensitivity")
 
-        // Try enhanced detection via WebView
-        if (webViewBridge.isReady()) {
-            try {
-                val jsonResult = webViewBridge.analyzeText(message, sensitivity, platform)
-                return parseEnhancedResult(jsonResult)
-            } catch (e: Exception) {
-                Log.e(TAG, "Enhanced detection failed, using fallback: ${e.message}", e)
-            }
+        // Priority 1: RandomForest binary risk classifier (the paper's actual method).
+        val rfResult = tryRandomForest(message, sensitivity)
+        if (rfResult != null) {
+            val enriched = maybeAttachWebViewCategory(rfResult, message, sensitivity, platform)
+            Log.d(DETECT_TAG, "Final toxicityScore=${enriched.toxicityScore} " +
+                "isToxic=${enriched.isToxic} category=${enriched.category} source=RF")
+            return enriched
         }
 
-        // Fallback to basic analyzer
-        return useFallbackAnalyzer(message, sensitivity)
+        // Priority 2: Deterministic lexicon fallback. Guaranteed to run.
+        val fallback = useFallbackAnalyzer(message, sensitivity)
+        Log.d(DETECT_TAG, "Final toxicityScore=${fallback.toxicityScore} " +
+            "isToxic=${fallback.isToxic} category=${fallback.category} source=LEXICON")
+        return fallback
+    }
+
+    /**
+     * Run the RandomForest binary risk classifier. Returns null if unavailable or
+     * if it produced a non-finite score (in which case caller falls back to lexicon).
+     */
+    private fun tryRandomForest(message: String, sensitivity: Double): AnalysisResult? {
+        val clf = rfBinary ?: run {
+            Log.v(DETECT_TAG, "RF unavailable — skipping")
+            return null
+        }
+        return try {
+            val probs = clf.predictProba(message)
+            // Binary model: risk-positive index. Prefer explicit "risk"-like class,
+            // else fall back to index 1 (exporter convention: [negative, positive]).
+            val posIdx = clf.classes.indexOfFirst { c ->
+                val lc = c.lowercase()
+                lc.contains("risk") && !lc.contains("non") || lc == "1" || lc == "true" ||
+                    lc == "toxic" || lc == "positive"
+            }.let { if (it >= 0) it else (clf.classes.size - 1).coerceAtLeast(0) }
+            val riskScore = probs.getOrNull(posIdx) ?: Double.NaN
+            if (riskScore.isNaN() || riskScore.isInfinite()) {
+                Log.w(DETECT_TAG, "RF failed: non-finite score")
+                return null
+            }
+            Log.v(DETECT_TAG, "RF returned score=$riskScore (posClass=${clf.classes.getOrNull(posIdx)})")
+
+            val threshold = minOf(clf.threshold, sensitivity)
+            val isToxic = riskScore >= threshold
+
+            // Category: try RF category model first, else derive from lexicon.
+            val category = classifyCategory(message) ?: ToxicityAnalyzer.CATEGORY_NONE
+            val severity = when {
+                riskScore >= 0.75 -> "high"
+                riskScore >= 0.45 -> "medium"
+                riskScore >= 0.25 -> "low"
+                else -> "none"
+            }
+            AnalysisResult(
+                toxicityScore = riskScore.toFloat(),
+                originalScore = riskScore.toFloat(),
+                category = if (isToxic) category else ToxicityAnalyzer.CATEGORY_NONE,
+                severity = if (isToxic) severity else "none",
+                isToxic = isToxic,
+                usingEnhanced = true
+            )
+        } catch (t: Throwable) {
+            Log.w(DETECT_TAG, "RF failed: ${t.message}", t)
+            null
+        }
+    }
+
+    /**
+     * Classify the risk category using the RF category model, if available.
+     * Falls back to lexicon-derived category. Returns null on failure.
+     */
+    private fun classifyCategory(message: String): String? {
+        val cat = rfCategory
+        if (cat != null) {
+            try {
+                val pred = cat.predict(message)
+                Log.v(DETECT_TAG, "RF category=${pred.label} p=${pred.topProbability}")
+                // Normalise "self_harm_risk" → "self_harm" to match canonical schema.
+                val label = pred.label.lowercase()
+                return when {
+                    label.contains("self") && label.contains("harm") -> ToxicityAnalyzer.CATEGORY_SELF_HARM
+                    label in ToxicityAnalyzer.CANONICAL_CATEGORIES -> label
+                    else -> label
+                }
+            } catch (t: Throwable) {
+                Log.w(DETECT_TAG, "RF category failed: ${t.message}")
+            }
+        }
+        // Derive from lexicon
+        val lex = fallbackAnalyzer.analyzeMessage(message)
+        return if (lex.category != ToxicityAnalyzer.CATEGORY_NONE) lex.category else null
+    }
+
+    /**
+     * Optionally overwrite the category from a WebView analysis, but only when the
+     * WebView returned a real signal (no error, non-fallback, non-zero score).
+     * Score/toxicity are NEVER trusted from the WebView here — see trace report.
+     */
+    private fun maybeAttachWebViewCategory(
+        base: AnalysisResult,
+        message: String,
+        sensitivity: Double,
+        platform: String,
+    ): AnalysisResult {
+        if (!webViewBridge.isReady()) return base
+        return try {
+            val jsonResult = webViewBridge.analyzeText(message, sensitivity, platform)
+            val json = JSONObject(jsonResult)
+            if (json.optBoolean("fallback", false) || json.has("error")) {
+                if (json.has("error")) {
+                    Log.v(DETECT_TAG, "WebView JS error (ignored): ${json.optString("error")}")
+                }
+                return base
+            }
+            val wvCategory = json.optString("category", "").takeIf { it.isNotBlank() && it != "none" }
+            if (wvCategory != null && base.isToxic && base.category == ToxicityAnalyzer.CATEGORY_NONE) {
+                base.copy(category = wvCategory)
+            } else base
+        } catch (e: Exception) {
+            Log.v(DETECT_TAG, "WebView category enrichment skipped: ${e.message}")
+            base
+        }
     }
 
     /**
@@ -90,9 +230,14 @@ class EnhancedToxicityAnalyzer(private val context: Context) {
         try {
             val json = JSONObject(jsonString)
 
-            // Check if this is a fallback result
-            if (json.optBoolean("fallback", false)) {
-                Log.w(TAG, "Received fallback result from WebView")
+            // Treat any error field OR explicit fallback flag as "not really
+            // enhanced" — the JS IIFE's catch block returns error without
+            // setting fallback:true (see DETECTION_TRACE_REPORT.md §1).
+            if (json.optBoolean("fallback", false) || json.has("error")) {
+                if (json.has("error")) {
+                    Log.w(TAG, "JS error in WebView payload: ${json.optString("error")}")
+                }
+                Log.w(TAG, "Received fallback/error result from WebView")
                 return AnalysisResult(
                     toxicityScore = 0f,
                     originalScore = 0f,
@@ -147,6 +292,8 @@ class EnhancedToxicityAnalyzer(private val context: Context) {
     private fun useFallbackAnalyzer(message: String, sensitivity: Double): AnalysisResult {
         val basicResult = fallbackAnalyzer.analyzeMessage(message)
         val isToxic = basicResult.toxicityScore >= sensitivity
+        Log.v(DETECT_TAG, "Lexicon returned score=${basicResult.toxicityScore} " +
+            "category=${basicResult.category} severity=${basicResult.severity}")
 
         return AnalysisResult(
             toxicityScore = basicResult.toxicityScore,
