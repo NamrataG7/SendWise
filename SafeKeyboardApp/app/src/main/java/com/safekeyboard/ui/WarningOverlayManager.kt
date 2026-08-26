@@ -99,13 +99,39 @@ class WarningOverlayManager(private val context: Context) {
         try {
             windowManager?.addView(overlayView, params)
             isShowing = true
+            android.util.Log.i("WarningOverlay", "Overlay attached successfully")
         } catch (e: Exception) {
+            android.util.Log.w("WarningOverlay", "addView FAILED - falling back to Toast + Notification", e)
             e.printStackTrace()
-            Toast.makeText(
-                context,
-                R.string.toast_overlay_permission_needed,
-                Toast.LENGTH_SHORT
-            ).show()
+            // MIUI / OEM overlays are often blocked even when
+            // Settings.canDrawOverlays returns true. Fall back to a
+            // long Toast + a heads-up notification so the user is
+            // still warned even without the overlay window.
+            showFallbackWarning(category, severity)
+        }
+    }
+
+    /**
+     * Fallback when TYPE_APPLICATION_OVERLAY is silently blocked
+     * (MIUI, some Samsung skins, work-profile devices).
+     * Shows a persistent Toast and a heads-up notification instead.
+     */
+    private fun showFallbackWarning(category: String, severity: String) {
+        val displayCat = category.replaceFirstChar { it.titlecase() }
+        val message = "\u26A0\uFE0F SendWise: $displayCat (${severity.uppercase()}) — potentially harmful text detected. Consider editing before sending."
+        try {
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+        } catch (t: Throwable) {
+            android.util.Log.w("WarningOverlay", "Toast fallback also failed", t)
+        }
+        // Trigger onUserDecision(true) so the IME state machine
+        // doesn't stay stuck waiting for a decision the user can never
+        // give (there's no overlay to tap Edit/Continue on).
+        userMadeDecision = true
+        try {
+            onUserDecision?.invoke(false) // treat as "edited/cancelled" for logging
+        } catch (t: Throwable) {
+            android.util.Log.w("WarningOverlay", "onUserDecision callback failed", t)
         }
     }
 
