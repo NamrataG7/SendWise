@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/utils/supabase/server';
 import DashboardClient from './dashboard-client';
 import EmptyDashboardState from '@/components/EmptyDashboardState';
+import SignOutButton from '@/components/SignOutButton';
 import { getChildrenForParent } from '@/lib/parent-store';
 import {
   computeIncidentList,
@@ -36,7 +37,10 @@ export default async function DashboardPage() {
               <h1 className="text-3xl font-bold text-gray-900">SendWise</h1>
               <p className="text-sm text-gray-600">Parental Dashboard — {parentLabel}</p>
             </div>
-            <div className="text-sm text-gray-500">No child device linked</div>
+            <div className="flex items-center gap-4">
+              <div className="text-sm text-gray-500">No child device linked</div>
+              <SignOutButton />
+            </div>
           </div>
         </header>
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
