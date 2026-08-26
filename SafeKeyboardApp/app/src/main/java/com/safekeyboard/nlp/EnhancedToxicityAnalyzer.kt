@@ -137,7 +137,7 @@ class EnhancedToxicityAnalyzer(private val context: Context) {
             Log.w(DETECT_TAG, "detectHardProfanity threw: ${t.message}", t); null
         }
         if (hardHit != null) {
-            Log.d(DETECT_TAG, "HARD-TRIGGER hit=\"$hardHit\" text=${message.take(80)}")
+            Log.d(DETECT_TAG, "HARD-TRIGGER hit=\"$hardHit\" len=${message.length}")
             return AnalysisResult(
                 toxicityScore = 1.0f,
                 originalScore = 1.0f,

@@ -55,7 +55,20 @@ class PreferencesManager(context: Context) {
      * Gets the sensitivity threshold (0.0 to 1.0)
      */
     fun getSensitivityThreshold(): Float {
-        return prefs.getFloat(KEY_SENSITIVITY_THRESHOLD, DEFAULT_SENSITIVITY_THRESHOLD)
+        // SeekBarPreference persists as Int (0..100). Older builds may have
+        // persisted as Float (0.0..1.0). Read robustly so we never throw
+        // ClassCastException on a mixed-type preference file.
+        val raw = try { prefs.all[KEY_SENSITIVITY_THRESHOLD] } catch (t: Throwable) { null }
+        val normalized: Float = when (raw) {
+            is Int -> raw / 100f
+            is Long -> raw / 100f
+            is Float -> if (raw > 1.5f) raw / 100f else raw
+            is Double -> if (raw > 1.5) (raw / 100f).toFloat() else raw.toFloat()
+            is Number -> raw.toFloat() / 100f
+            is String -> raw.toFloatOrNull()?.let { if (it > 1.5f) it / 100f else it } ?: DEFAULT_SENSITIVITY_THRESHOLD
+            else -> DEFAULT_SENSITIVITY_THRESHOLD
+        }
+        return normalized.coerceIn(0f, 1f)
     }
 
     /**
