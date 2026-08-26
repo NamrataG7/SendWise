@@ -218,23 +218,12 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
             return true to "app in sensitive package allowlist: $matchedSensitivePkg"
         }
 
-        // 7. Positive whitelist overrides the two "soft" heuristics below.
-        val onAnalyzeWhitelist = ANALYZE_PACKAGE_WHITELIST.any { pkg.contains(it) }
-
-        // 4. NO_SUGGESTIONS flag on text fields
-        if (!onAnalyzeWhitelist &&
-            cls == InputType.TYPE_CLASS_TEXT &&
-            (flags and InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS) != 0
-        ) {
-            return true to "no-suggestions flag"
-        }
-
-        // 5. IME_FLAG_NO_PERSONALIZED_LEARNING (API 26+)
-        if (!onAnalyzeWhitelist &&
-            (info.imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING) != 0
-        ) {
-            return true to "no-personalized-learning"
-        }
+        // Rules 4 (NO_SUGGESTIONS) and 5 (IME_FLAG_NO_PERSONALIZED_LEARNING)
+        // were removed on 2026-08-26 — too many false negatives. MIUI system
+        // search, many messengers, and ordinary text fields set these flags
+        // for reasons unrelated to sensitivity (they just want autocorrect
+        // off). We rely on the strong signals: password variants, numeric
+        // class, email/URI variations, and the sensitive package allowlist.
 
         return false to "ok"
     }
