@@ -7,6 +7,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.text.InputType
 import android.util.Log
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -115,12 +116,128 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
     // Fig 2 warning overlay as soon as the RF classifier score >= 0.5.
     private val liveDebounceHandler = Handler(Looper.getMainLooper())
     private var pendingLiveAnalysis: Runnable? = null
-    private val LIVE_ANALYSIS_DEBOUNCE_MS = 800L
+    private val LIVE_ANALYSIS_DEBOUNCE_MS = 1000L
+    private val LIVE_ANALYSIS_WORD_BOUNDARY_DEBOUNCE_MS = 300L
     private var lastLiveAnalyzedText: String = ""
+
+    // Sensitive-field state. When false, MessageBuffer capture, live analysis,
+    // and suggestion strip are all disabled for privacy (fix: passwords /
+    // banking / OTP / secure apps).
+    private var analysisEnabledForField: Boolean = true
+
+    // Last committed character — used by the word-boundary fast path in
+    // scheduleLiveAnalysis(). Set by handleCharacter / onText.
+    private var lastCommittedChar: Char = '\u0000'
 
     companion object {
         private const val TAG = "SafeKeyboardIME"
-        private const val MIN_CHARS_FOR_LIVE = 10
+        private const val MIN_CHARS_FOR_LIVE = 25
+        private const val MIN_WORDS_FOR_LIVE = 4
+
+        // Packages where we ALWAYS skip analysis + buffer capture, even if
+        // the input field looks benign.
+        private val SENSITIVE_PACKAGE_ALLOWLIST = listOf(
+            // Banking
+            "chase", "citi", "wellsfargo", "bankofamerica", "hdfc", "icici",
+            "sbi", "axis", "kotak", "paypal", "venmo", "revolut", "monzo",
+            "n26", "cash.app",
+            // India payment / UPI
+            "gpay", "googlepay", "phonepe", "paytm", "bhim",
+            "amazon.mshop", "amazonpay",
+            // Secure messaging
+            "signal", "telegram", "threema", "session.messenger",
+            // Password managers
+            "1password", "bitwarden", "dashlane", "lastpass", "keepass", "nordpass",
+            // System auth
+            "com.google.android.gms.auth", "com.android.settings"
+        )
+
+        // Positive whitelist: chat / social apps where we WANT to analyze
+        // even if the field carries NO_SUGGESTIONS or NO_PERSONALIZED_LEARNING.
+        // (Password/numeric rules still take precedence.)
+        private val ANALYZE_PACKAGE_WHITELIST = listOf(
+            "whatsapp", "instagram", "snapchat",
+            "com.facebook.orca", "com.discord", "com.twitter", "com.reddit",
+            "com.tiktok", "com.telegram.messenger",
+            "sms", "com.android.messaging", "com.samsung.android.messaging"
+        )
+    }
+
+    /**
+     * Detect whether the current input field should be excluded from
+     * message-buffer capture, live analysis, and suggestions.
+     *
+     * Returns (isSensitive, reasonString) — reason is logged for debugging
+     * on-device but never persisted or exfiltrated.
+     */
+    private fun isSensitiveInputField(info: EditorInfo?): Pair<Boolean, String> {
+        if (info == null) return false to "no-editor-info"
+
+        val inputType = info.inputType
+        val cls = inputType and InputType.TYPE_MASK_CLASS
+        val variation = inputType and InputType.TYPE_MASK_VARIATION
+        val flags = inputType and InputType.TYPE_MASK_FLAGS
+        val pkg = (info.packageName ?: "").lowercase()
+
+        // 1. Password variants (text + number classes)
+        if (cls == InputType.TYPE_CLASS_TEXT && (
+                variation == InputType.TYPE_TEXT_VARIATION_PASSWORD ||
+                variation == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD ||
+                variation == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+            )
+        ) {
+            return true to "password"
+        }
+        if (cls == InputType.TYPE_CLASS_NUMBER &&
+            variation == InputType.TYPE_NUMBER_VARIATION_PASSWORD
+        ) {
+            return true to "password"
+        }
+
+        // 2. Numeric class — banking amounts / PINs / OTPs / phone digits
+        if (cls == InputType.TYPE_CLASS_NUMBER) {
+            return true to "numeric"
+        }
+
+        // 3. Email / phone / URI
+        if (cls == InputType.TYPE_CLASS_PHONE) {
+            return true to "email/phone/uri"
+        }
+        if (cls == InputType.TYPE_CLASS_TEXT && (
+                variation == InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS ||
+                variation == InputType.TYPE_TEXT_VARIATION_EMAIL_SUBJECT ||
+                variation == InputType.TYPE_TEXT_VARIATION_PHONE ||
+                variation == InputType.TYPE_TEXT_VARIATION_URI
+            )
+        ) {
+            return true to "email/phone/uri"
+        }
+
+        // 6. Package allowlist — absolute skip regardless of field type.
+        val matchedSensitivePkg = SENSITIVE_PACKAGE_ALLOWLIST.firstOrNull { pkg.contains(it) }
+        if (matchedSensitivePkg != null) {
+            return true to "app in sensitive package allowlist: $matchedSensitivePkg"
+        }
+
+        // 7. Positive whitelist overrides the two "soft" heuristics below.
+        val onAnalyzeWhitelist = ANALYZE_PACKAGE_WHITELIST.any { pkg.contains(it) }
+
+        // 4. NO_SUGGESTIONS flag on text fields
+        if (!onAnalyzeWhitelist &&
+            cls == InputType.TYPE_CLASS_TEXT &&
+            (flags and InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS) != 0
+        ) {
+            return true to "no-suggestions flag"
+        }
+
+        // 5. IME_FLAG_NO_PERSONALIZED_LEARNING (API 26+)
+        if (!onAnalyzeWhitelist &&
+            (info.imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING) != 0
+        ) {
+            return true to "no-personalized-learning"
+        }
+
+        return false to "ok"
     }
 
     override fun onCreate() {
@@ -177,6 +294,24 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
             currentAppPackage = it
         }
 
+        // Determine whether this field is safe to analyze.
+        val (sensitive, reason) = isSensitiveInputField(attribute)
+        analysisEnabledForField = !sensitive
+        if (sensitive) {
+            Log.d(TAG, "Analysis disabled: reason=$reason")
+            // Belt-and-braces: drop anything we may have captured and cancel
+            // any live analysis that was queued from a previous field.
+            messageBuffer.clear()
+            pendingLiveAnalysis?.let { liveDebounceHandler.removeCallbacks(it) }
+            pendingLiveAnalysis = null
+            lastLiveAnalyzedText = ""
+            // Hide suggestions on sensitive fields (matches Gboard behavior).
+            suggestionStrip?.visibility = View.GONE
+        } else {
+            Log.d(TAG, "Analysis enabled: reason=$reason")
+            suggestionStrip?.visibility = View.VISIBLE
+        }
+
         // Update send intent detector with app context
         sendIntentDetector.updateAppContext(currentAppPackage)
     }
@@ -192,6 +327,11 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
      */
     override fun onFinishInput() {
         super.onFinishInput()
+        if (!analysisEnabledForField) {
+            Log.d(TAG, "Live skipped: sensitive field (onFinishInput)")
+            messageBuffer.clear()
+            return
+        }
         try {
             if (preferencesManager.isModerationEnabled() &&
                 !messageBuffer.isEmpty() &&
@@ -271,7 +411,10 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
                 pendingLongPress = Runnable {
                     val ic = currentInputConnection ?: return@Runnable
                     ic.commitText(digit.toString(), 1)
-                    messageBuffer.append(digit.toString())
+                    if (analysisEnabledForField) {
+                        messageBuffer.append(digit.toString())
+                        lastCommittedChar = digit
+                    }
                     longPressConsumed = true
                     lastKeyPressTime = System.currentTimeMillis()
                     refreshSuggestions()
@@ -295,7 +438,9 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
         // Handle text input
         text?.let {
             currentInputConnection?.commitText(it, 1)
+            if (!analysisEnabledForField) return
             messageBuffer.append(it.toString())
+            if (it.isNotEmpty()) lastCommittedChar = it[it.length - 1]
             scheduleLiveAnalysis()
         }
     }
@@ -318,8 +463,15 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
         // Commit character
         ic.commitText(char.toString(), 1)
 
+        if (!analysisEnabledForField) {
+            // Privacy: do NOT capture into buffer or run live analysis on
+            // sensitive fields (passwords, banking, OTPs, etc.).
+            return
+        }
+
         // Add to message buffer
         messageBuffer.append(char.toString())
+        lastCommittedChar = char
 
         // Check for send intent periodically
         checkSendIntentAsync()
@@ -345,6 +497,13 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
     private fun handleDone(ic: InputConnection) {
         // Enter key pressed - strong signal of intent to send
         sendIntentDetector.recordEnterKeyPress()
+
+        if (!analysisEnabledForField) {
+            Log.d(TAG, "Live skipped: sensitive field (handleDone)")
+            ic.sendKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_ENTER))
+            ic.sendKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_ENTER))
+            return
+        }
 
         // Paper Algorithm 1, step 1: immediate synchronous analysis on Enter/Send
         // in a social/communication context. If risky, consume the key event and
@@ -600,15 +759,20 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
      */
     private fun scheduleLiveAnalysis() {
         if (!preferencesManager.isModerationEnabled()) return
+        if (!analysisEnabledForField) {
+            Log.d(TAG, "Live skipped: sensitive field")
+            return
+        }
 
         // Cancel any pending analysis — user is still typing.
         pendingLiveAnalysis?.let { liveDebounceHandler.removeCallbacks(it) }
 
         val runnable = Runnable {
             val text = messageBuffer.getCurrentMessage()
+            val wordCount = text.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }.size
 
-            if (text.length < MIN_CHARS_FOR_LIVE) {
-                Log.w(TAG, "Live analyze skipped: too_short len=${text.length}")
+            if (text.length < MIN_CHARS_FOR_LIVE || wordCount < MIN_WORDS_FOR_LIVE) {
+                Log.w(TAG, "Live analyze skipped: too short/few words len=${text.length} words=$wordCount")
                 return@Runnable
             }
             if (text == lastLiveAnalyzedText) {
@@ -647,8 +811,20 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
             }
         }
         pendingLiveAnalysis = runnable
-        liveDebounceHandler.postDelayed(runnable, LIVE_ANALYSIS_DEBOUNCE_MS)
-        Log.d(TAG, "Live scheduled for buffer len=${messageBuffer.getCurrentMessage().length}")
+
+        // Word-boundary fast path: if the user just committed a space AND the
+        // buffer already has enough words, fire quickly (300ms) instead of
+        // waiting for the full debounce. This surfaces the warning sooner at
+        // semantically meaningful chunks.
+        val currentText = messageBuffer.getCurrentMessage()
+        val currentWordCount = currentText.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }.size
+        val delayMs = if (lastCommittedChar == ' ' && currentWordCount >= MIN_WORDS_FOR_LIVE) {
+            LIVE_ANALYSIS_WORD_BOUNDARY_DEBOUNCE_MS
+        } else {
+            LIVE_ANALYSIS_DEBOUNCE_MS
+        }
+        liveDebounceHandler.postDelayed(runnable, delayMs)
+        Log.d(TAG, "Live scheduled for buffer len=${currentText.length} words=$currentWordCount delay=${delayMs}ms")
     }
 
     /**
