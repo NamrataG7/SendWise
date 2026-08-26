@@ -8,7 +8,7 @@ import { emptyInsights, payloadToChartData } from '@/lib/insights-aggregates';
 import InsightsGrid from '@/components/insights/InsightsGrid';
 
 export const metadata = {
-  title: 'Behavioral Insights (Fig 3) — SendWise',
+  title: 'Behavioral Insights — SendWise',
   description:
     'Aggregated behavioral risk indicators from the SendWise parental dashboard.',
 };
@@ -61,7 +61,7 @@ export default async function InsightsPage() {
       <main className="max-w-[1200px] mx-auto px-6 py-8">
         <div className="mb-6">
           <h1 className="text-[28px] font-extrabold text-[#101532]">
-            Behavioral Insights (Fig 3)
+            Behavioral Insights
           </h1>
           <p className="text-[14px] text-[#6B7280] mt-1">
             Aggregated behavioral risk indicators. No message content is ever

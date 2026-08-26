@@ -138,7 +138,7 @@ Tested on Redmi Note 7 Pro (Android 10, MIUI 12). Similar phones follow the same
 1. Refresh **https://sendwise-lac.vercel.app**
 2. Stats tile updates: **PREVENTED** goes up (if child tapped Edit) or **TOTAL** goes up (if Continued)
 3. New incident card appears in the feed: category, severity, action, recommendation, and the redaction notice *"Message content is private and never leaves the child's device"*
-4. Click **"View Fig 3 Insights →"** at the top right for the 4-chart aggregated view (30-day trend, category distribution, severity distribution, edited-vs-sent ratio)
+4. Click **"View Insights →"** at the top right for the 4-chart aggregated view (30-day trend, category distribution, severity distribution, edited-vs-sent ratio)
 
 ---
 

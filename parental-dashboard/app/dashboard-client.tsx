@@ -103,7 +103,7 @@ export default function DashboardClient({
                 href="/insights"
                 className="px-4 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition"
               >
-                View Fig 3 Insights →
+                View Insights →
               </Link>
               <button
                 onClick={handleExportReport}

@@ -53,7 +53,7 @@ export default async function DashboardPage() {
           <EmptyDashboardState />
           <div className="text-center mt-6">
             <a href="/insights" className="text-sm text-purple-700 hover:underline">
-              View Fig 3 Insights →
+              View Insights →
             </a>
           </div>
         </main>
