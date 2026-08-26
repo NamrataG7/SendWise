@@ -107,8 +107,20 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
         )
     }
 
+    // --- Live (debounced) analysis while typing ---------------------------
+    // WhatsApp / IG / most messengers use their OWN Send button (outside the
+    // keyboard), so KEYCODE_DONE never fires and handleDone()'s pre-send
+    // analysis is skipped. To still catch harmful content in those apps, we
+    // run a debounced analysis on the buffer as the user types. Fires the
+    // Fig 2 warning overlay as soon as the RF classifier score >= 0.5.
+    private val liveDebounceHandler = Handler(Looper.getMainLooper())
+    private var pendingLiveAnalysis: Runnable? = null
+    private val LIVE_ANALYSIS_DEBOUNCE_MS = 800L
+    private var lastLiveAnalyzedText: String = ""
+
     companion object {
         private const val TAG = "SafeKeyboardIME"
+        private const val MIN_CHARS_FOR_LIVE = 10
     }
 
     override fun onCreate() {
@@ -264,6 +276,7 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
                     lastKeyPressTime = System.currentTimeMillis()
                     refreshSuggestions()
                     vibrate(30)
+                    scheduleLiveAnalysis()
                 }
                 pressHandler.postDelayed(pendingLongPress!!, 300)
             }
@@ -283,6 +296,7 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
         text?.let {
             currentInputConnection?.commitText(it, 1)
             messageBuffer.append(it.toString())
+            scheduleLiveAnalysis()
         }
     }
 
@@ -309,6 +323,9 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
 
         // Check for send intent periodically
         checkSendIntentAsync()
+
+        // Debounced live analysis (catches WhatsApp-style external Send).
+        scheduleLiveAnalysis()
     }
 
     private fun handleBackspace(ic: InputConnection) {
@@ -404,6 +421,7 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
             ic.endBatchEdit()
         }
         refreshSuggestions()
+        scheduleLiveAnalysis()
     }
 
     // -----------------------------------------------------------------------
@@ -572,6 +590,68 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
     }
 
     /**
+     * Debounced live analysis while typing (Fig 2 trigger for messengers
+     * that use their own Send button — WhatsApp, Instagram, etc.).
+     *
+     * Every printable-char insert calls this. We cancel any pending run and
+     * post a new one 800ms later. Once fired, we hop off the UI thread for
+     * the (potentially expensive) RF classifier call, then hop back to show
+     * the warning overlay if score >= 0.5.
+     */
+    private fun scheduleLiveAnalysis() {
+        if (!preferencesManager.isModerationEnabled()) return
+
+        // Cancel any pending analysis — user is still typing.
+        pendingLiveAnalysis?.let { liveDebounceHandler.removeCallbacks(it) }
+
+        val runnable = Runnable {
+            val text = messageBuffer.getCurrentMessage()
+
+            if (text.length < MIN_CHARS_FOR_LIVE) {
+                Log.w(TAG, "Live analyze skipped: too_short len=${text.length}")
+                return@Runnable
+            }
+            if (text == lastLiveAnalyzedText) {
+                Log.w(TAG, "Live analyze skipped: unchanged len=${text.length}")
+                return@Runnable
+            }
+            if (overlayManager.isOverlayShowing()) {
+                Log.w(TAG, "Live analyze skipped: overlay_already_showing")
+                return@Runnable
+            }
+
+            lastLiveAnalyzedText = text
+
+            // Off UI thread for classifier, then back on for overlay.
+            serviceScope.launch(Dispatchers.Default) {
+                try {
+                    val result = enhancedAnalyzer.analyzeMessage(
+                        message = text,
+                        sensitivity = preferencesManager.getSensitivityThreshold().toDouble(),
+                        platform = getPlatformFromPackage(currentAppPackage)
+                    )
+                    Log.d(TAG, "Live analyzed len=${text.length} score=${result.toxicityScore}")
+                    if (result.toxicityScore >= 0.5f) {
+                        withContext(Dispatchers.Main) {
+                            if (!overlayManager.isOverlayShowing()) {
+                                showWarningPopup(result)
+                            } else {
+                                Log.w(TAG, "Live analyze skipped: overlay_shown_during_analysis")
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Fail open.
+                    e.printStackTrace()
+                }
+            }
+        }
+        pendingLiveAnalysis = runnable
+        liveDebounceHandler.postDelayed(runnable, LIVE_ANALYSIS_DEBOUNCE_MS)
+        Log.d(TAG, "Live scheduled for buffer len=${messageBuffer.getCurrentMessage().length}")
+    }
+
+    /**
      * Shows the intervention popup
      */
     private fun showWarningPopup(result: EnhancedToxicityAnalyzer.AnalysisResult) {
@@ -630,6 +710,9 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
 
         // Reset send intent detector
         sendIntentDetector.reset()
+
+        // Allow live analysis to re-fire on the next batch of typing.
+        lastLiveAnalyzedText = ""
     }
 
     /**
@@ -668,6 +751,9 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
         // Buffer remains intact; user can continue editing.
         // Reset send intent detector.
         sendIntentDetector.reset()
+
+        // Allow live analysis to re-fire if user keeps typing after editing.
+        lastLiveAnalyzedText = ""
     }
 
     /**
@@ -702,6 +788,9 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
 
         pendingWarningCategory = null
         pendingWarningSeverity = null
+
+        // Allow live analysis to re-fire on new typing after cancellation.
+        lastLiveAnalyzedText = ""
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
@@ -724,6 +813,8 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
         super.onDestroy()
         serviceScope.cancel()
         cancelPendingTimers()
+        pendingLiveAnalysis?.let { liveDebounceHandler.removeCallbacks(it) }
+        pendingLiveAnalysis = null
         overlayManager.cleanup()
         enhancedAnalyzer.destroy()
     }
