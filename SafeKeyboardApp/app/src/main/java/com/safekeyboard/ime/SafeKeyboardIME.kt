@@ -765,7 +765,13 @@ class SafeKeyboardIME : InputMethodService(), KeyboardView.OnKeyboardActionListe
             val text = messageBuffer.getCurrentMessage()
             val wordCount = text.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }.size
 
-            if (text.length < MIN_CHARS_FOR_LIVE || wordCount < MIN_WORDS_FOR_LIVE) {
+            // Hard-trigger bypass: if the buffer contains an unambiguous
+            // slur/profanity token, skip the length/word gate entirely.
+            // Guarantees "stupid" / "motherfucker" alone still triggers.
+            val bypassThresholds = enhancedAnalyzer.containsHardTriggerToken(text) != null
+
+            if (!bypassThresholds &&
+                (text.length < MIN_CHARS_FOR_LIVE || wordCount < MIN_WORDS_FOR_LIVE)) {
                 Log.w(TAG, "Live analyze skipped: too short/few words len=${text.length} words=$wordCount")
                 suggestionStrip?.showBanner("SW: need ${MIN_CHARS_FOR_LIVE}c/${MIN_WORDS_FOR_LIVE}w (have ${text.length}c/${wordCount}w)", 2)
                 return@Runnable

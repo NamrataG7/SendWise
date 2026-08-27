@@ -71,6 +71,14 @@ class EnhancedToxicityAnalyzer(private val context: Context) {
         "kys", "die", "kill yourself", "hate you", "nobody likes you"
     )
 
+    /**
+     * Public wrapper for use by IME callers who want to bypass length/word
+     * thresholds when the buffer clearly contains an unambiguous slur.
+     * Returns the matched token or null.
+     */
+    fun containsHardTriggerToken(message: String): String? =
+        try { detectHardProfanity(message) } catch (_: Throwable) { null }
+
     private fun detectHardProfanity(message: String): String? {
         val lc = message.lowercase()
         for (word in HARD_TRIGGER_WORDS) {
