@@ -22,11 +22,4 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-Dataset Attribution (SendWise_Dataset.csv):
-
-The training dataset in model_training/data/ was collected in 2025 from public
-YouTube comments and X (Twitter) posts under the Fair Use / Research Exemption
-for academic study. Text records were annotated by five independent annotators
-and cross-verified. No personally identifiable information, user handles, or
-private messages are included. Redistribution of this dataset is permitted
-under CC-BY 4.0 with attribution to the SendWise paper (Gaikwad & Ohatkar, 2026).
+DDataset notice: The SendWise dataset was collected from publicly accessible textual content on YouTube and X during 2025 and manually annotated for this study. The dataset is provided for research reproducibility subject to the terms and rights applicable to the original source platforms. Users of the dataset are responsible for complying with applicable platform terms and copyright requirements.
