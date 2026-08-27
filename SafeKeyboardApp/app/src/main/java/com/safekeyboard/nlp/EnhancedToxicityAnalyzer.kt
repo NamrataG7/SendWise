@@ -63,13 +63,59 @@ class EnhancedToxicityAnalyzer(private val context: Context) {
      * thresholds, no debounce dependency. Guarantees the detection path
      * is functional even if RF fails to load or lexicon regresses.
      */
-    private val HARD_TRIGGER_WORDS = setOf(
-        "stupid", "idiot", "moron", "retard", "loser", "ugly", "worthless",
-        "bitch", "bastard", "asshole", "motherfucker", "fuck", "fucker",
-        "fucking", "fucked", "shit", "damn", "prick", "dick", "dickhead",
-        "cunt", "slut", "whore", "hoe", "dumbass", "faggot", "nigger",
-        "kys", "die", "kill yourself", "hate you", "nobody likes you"
-    )
+    /**
+     * Hard-trigger short-circuit list, mapped by category.
+     * Any occurrence of these tokens as a standalone word (case-insensitive,
+     * punctuation-tolerant) fires the warning overlay immediately with
+     * score=1.0 and the correct category — no RF, no lexicon, no thresholds,
+     * no debounce dependency.
+     */
+    private val HARD_TRIGGERS: List<Pair<String, String>> = buildList {
+        // SELF-HARM RISK - suicidal ideation, self-injury
+        listOf(
+            "kill myself", "end my life", "end it all", "want to die",
+            "wanna die", "wish i was dead", "wish i were dead",
+            "no reason to live", "cant go on", "can't go on",
+            "jump off", "hang myself", "cut myself", "cutting myself",
+            "self harm", "self-harm", "suicidal", "suicide",
+            "kys", "kill yourself", "kys yourself"
+        ).forEach { add(it to ToxicityAnalyzer.CATEGORY_SELF_HARM) }
+
+        // THREATS - violence, intimidation
+        listOf(
+            "kill you", "gonna kill", "going to kill", "murder you",
+            "beat you up", "beat the shit", "beat you down",
+            "hurt you", "gonna hurt", "going to hurt",
+            "watch your back", "you're dead", "youre dead",
+            "gonna find you", "going to find you", "coming for you",
+            "shoot you", "stab you", "break your"
+        ).forEach { add(it to ToxicityAnalyzer.CATEGORY_THREATS) }
+
+        // SEXUAL CONTENT - unwanted sexual references
+        listOf(
+            "have sex", "want to fuck", "wanna fuck", "fuck you",
+            "send nudes", "send nude", "send pics", "send pic",
+            "show your", "show me your", "your body",
+            "get naked", "take off your", "strip for",
+            "hookup", "hook up with", "porn", "pornography",
+            "sex chat", "dick pic", "boobs", "tits", "titties"
+        ).forEach { add(it to ToxicityAnalyzer.CATEGORY_SEXUAL_CONTENT) }
+
+        // HATE SPEECH - slurs targeting protected groups
+        listOf(
+            "faggot", "nigger", "chink", "kike", "spic", "tranny",
+            "retard", "retarded"
+        ).forEach { add(it to ToxicityAnalyzer.CATEGORY_HATE_SPEECH) }
+
+        // HARASSMENT - personal insults, profanity (default catch-all)
+        listOf(
+            "stupid", "idiot", "moron", "loser", "ugly", "worthless",
+            "bitch", "bastard", "asshole", "motherfucker", "fuck",
+            "fucker", "fucking", "fucked", "shit", "damn", "prick",
+            "dick", "dickhead", "cunt", "slut", "whore", "hoe",
+            "dumbass", "pathetic", "nobody likes you", "hate you"
+        ).forEach { add(it to ToxicityAnalyzer.CATEGORY_HARASSMENT) }
+    }
 
     /**
      * Public wrapper for use by IME callers who want to bypass length/word
@@ -77,18 +123,25 @@ class EnhancedToxicityAnalyzer(private val context: Context) {
      * Returns the matched token or null.
      */
     fun containsHardTriggerToken(message: String): String? =
-        try { detectHardProfanity(message) } catch (_: Throwable) { null }
+        try { detectHardProfanity(message)?.first } catch (_: Throwable) { null }
 
-    private fun detectHardProfanity(message: String): String? {
+    /**
+     * Returns (matchedToken, category) or null.
+     *
+     * Priority: iterates HARD_TRIGGERS in order (self-harm > threats >
+     * sexual > hate > harassment) so that "i want to kill myself"
+     * matches self-harm, not the "kill" substring of threats.
+     */
+    private fun detectHardProfanity(message: String): Pair<String, String>? {
         val lc = message.lowercase()
-        for (word in HARD_TRIGGER_WORDS) {
+        for ((word, cat) in HARD_TRIGGERS) {
             if (word.contains(' ')) {
                 // multi-word phrase — substring match
-                if (lc.contains(word)) return word
+                if (lc.contains(word)) return word to cat
             } else {
                 // single word — bounded by non-letter or start/end
                 val re = Regex("(^|[^a-z])${Regex.escape(word)}([^a-z]|$)")
-                if (re.containsMatchIn(lc)) return word
+                if (re.containsMatchIn(lc)) return word to cat
             }
         }
         return null
@@ -138,19 +191,29 @@ class EnhancedToxicityAnalyzer(private val context: Context) {
     ): AnalysisResult {
         Log.v(DETECT_TAG, "analyzeMessage text.len=${message.length} sensitivity=$sensitivity")
 
-        // Priority 0: Hard-trigger profanity short-circuit — guarantees the popup
+        // Priority 0: Hard-trigger short-circuit — guarantees the popup
         // fires for unambiguously abusive words regardless of RF / lexicon /
         // threshold state. Isolates keyboard-lifecycle bugs from analyzer bugs.
         val hardHit = try { detectHardProfanity(message) } catch (t: Throwable) {
             Log.w(DETECT_TAG, "detectHardProfanity threw: ${t.message}", t); null
         }
         if (hardHit != null) {
-            Log.d(DETECT_TAG, "HARD-TRIGGER hit=\"$hardHit\" len=${message.length}")
+            val (matchedToken, matchedCategory) = hardHit
+            Log.d(DETECT_TAG, "HARD-TRIGGER hit=\"$matchedToken\" cat=$matchedCategory len=${message.length}")
+            // Self-harm + threats are inherently high severity;
+            // hate-speech / sexual-content are high; harassment defaults medium.
+            val sev = when (matchedCategory) {
+                ToxicityAnalyzer.CATEGORY_SELF_HARM,
+                ToxicityAnalyzer.CATEGORY_THREATS,
+                ToxicityAnalyzer.CATEGORY_HATE_SPEECH,
+                ToxicityAnalyzer.CATEGORY_SEXUAL_CONTENT -> "high"
+                else -> "medium"
+            }
             return AnalysisResult(
                 toxicityScore = 1.0f,
                 originalScore = 1.0f,
-                category = ToxicityAnalyzer.CATEGORY_HARASSMENT,
-                severity = "high",
+                category = matchedCategory,
+                severity = sev,
                 isToxic = true,
                 usingEnhanced = false
             )
