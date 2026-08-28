@@ -39,6 +39,12 @@ export interface Incident {
   // Message content is analyzed on-device only and NEVER leaves the child's device.
   // Therefore no `detectedText` / message-content field exists on Incident.
   action: ActionTaken;
+  /**
+   * True when the parent has "Mark Reviewed"-ed this incident.
+   * Reviewed incidents are hidden from the home incident feed but preserved
+   * in Insights / CSV export / historical trends.
+   */
+  reviewed?: boolean;
   detections: {
     type: string;
     matches: string[];

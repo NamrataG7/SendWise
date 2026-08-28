@@ -7,12 +7,14 @@ import { redis } from '@/lib/redis';
 /**
  * DELETE /api/violations/[user_id_hash]/[incident_id]
  *
- * "Mark Reviewed" - permanently removes the referenced incident from the
- * child's violations list so it no longer appears on the parent dashboard.
+ * "Mark Reviewed" - SOFT-flags the referenced incident. The JSON blob in
+ * Redis is rewritten in-place (LSET) with `reviewed:true` so:
+ *   - Home incident feed hides it
+ *   - Insights + trend charts still count it
+ *   - CSV export still includes it
+ *   - Audit trail intact
  *
  * Auth: Supabase parent session + isChildOfParent membership check.
- * Storage: Redis LREM against violations:{user_id_hash} matching the JSON
- *          record whose "id" field equals incident_id.
  */
 export async function DELETE(
   _req: Request,
@@ -45,17 +47,18 @@ export async function DELETE(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  // The Incident.id shown in the UI is derived at read-time from the
-  // fields inside the JSON blob (see lib/insights-server.ts:210):
+  // The Incident.id shown in the UI is derived at read-time in
+  // lib/insights-server.ts:
   //     id = `${user_id_hash}:${session_id}:${timestamp}:${index}`
-  // We reconstruct it the same way, then LREM the matching raw entry.
+  // We reconstruct it, then LSET the matching raw entry with
+  // `reviewed:true` merged in.
   const key = `violations:${hash}`;
   const items = await redis.lrange(key, 0, -1);
-  let removed = 0;
+  let flagged = 0;
   for (let i = 0; i < items.length; i++) {
     const raw = items[i];
     try {
-      const v = JSON.parse(raw) as {
+      const v = JSON.parse(raw) as Record<string, unknown> & {
         user_id_hash?: string;
         session_id?: string;
         timestamp?: string;
@@ -63,14 +66,15 @@ export async function DELETE(
       if (!v || !v.user_id_hash || !v.session_id || !v.timestamp) continue;
       const derivedId = `${v.user_id_hash}:${v.session_id}:${v.timestamp}:${i}`;
       if (derivedId === incidentId) {
-        const n = await redis.lrem(key, 0, raw);
-        removed += n;
-        break; // only one match by index
+        v.reviewed = true;
+        await redis.lset(key, i, JSON.stringify(v));
+        flagged = 1;
+        break;
       }
     } catch {
       // ignore malformed entries
     }
   }
 
-  return NextResponse.json({ ok: true, removed });
+  return NextResponse.json({ ok: true, flagged });
 }

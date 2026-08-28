@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import IncidentCard from '@/components/IncidentCard';
 import StatsOverview from '@/components/StatsOverview';
@@ -24,13 +24,32 @@ export default function DashboardClient({
   incidents: initialIncidents,
   stats,
 }: Props) {
-  // Local state so 'Mark Reviewed' can remove a card instantly without
-  // waiting for a router.refresh() round-trip. Server list is authoritative
-  // on next load.
+  // Local state so 'Mark Reviewed' can update instantly without waiting
+  // for a router.refresh() round-trip. Server list is authoritative on
+  // next load, and the reviewed flag is persisted to Redis via the
+  // DELETE endpoint (which soft-flags, not deletes — historical data
+  // is preserved for Insights and CSV export).
   const [incidents, setIncidents] = useState<Incident[]>(initialIncidents);
 
   const handleReviewed = (incidentId: string) => {
-    setIncidents((cur) => cur.filter((i) => i.id !== incidentId));
+    // Soft-flag locally so the card disappears from the home feed but
+    // stays in filteredIncidents (used by CSV export) and stats.
+    setIncidents((cur) =>
+      cur.map((i) => (i.id === incidentId ? { ...i, reviewed: true } : i)),
+    );
+  };
+
+  // "Review Now" scroll-to-first-critical wiring
+  const criticalSectionRef = useRef<HTMLDivElement | null>(null);
+  const [flashCritical, setFlashCritical] = useState(false);
+
+  const handleReviewNow = () => {
+    const el = criticalSectionRef.current;
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    setFlashCritical(true);
+    window.setTimeout(() => setFlashCritical(false), 1400);
   };
 
   const [selectedCategories, setSelectedCategories] = useState<IncidentCategory[]>([
@@ -49,22 +68,31 @@ export default function DashboardClient({
     );
   };
 
+  // filteredIncidents keeps EVERYTHING (including reviewed) — used by CSV export.
   const filteredIncidents = useMemo(
     () => incidents.filter(inc => selectedCategories.includes(inc.category)),
     [incidents, selectedCategories],
+  );
+
+  // visibleIncidents drops reviewed — used by home feed sections + count.
+  const visibleIncidents = useMemo(
+    () => filteredIncidents.filter(inc => !inc.reviewed),
+    [filteredIncidents],
   );
 
   const handleExportReport = () => {
     // Privacy guarantee (SendWise paper §Privacy by Design):
     // Exported reports contain metadata only. Message content is analyzed on-device
     // and never leaves the child's device, so it is not — and cannot be — exported.
-    const headers = ['Timestamp', 'Platform', 'Category', 'Severity', 'Action', 'Recommendation'];
+    // Reviewed incidents ARE included so the audit trail stays intact.
+    const headers = ['Timestamp', 'Platform', 'Category', 'Severity', 'Action', 'Reviewed', 'Recommendation'];
     const rows = filteredIncidents.map(inc => [
       new Date(inc.timestamp).toLocaleString(),
       inc.platform,
       inc.category,
       inc.severity,
       inc.action,
+      inc.reviewed ? 'yes' : 'no',
       inc.recommendation,
     ]);
 
@@ -82,10 +110,10 @@ export default function DashboardClient({
     URL.revokeObjectURL(url);
   };
 
-  const criticalIncidents = filteredIncidents.filter(
+  const criticalIncidents = visibleIncidents.filter(
     inc => inc.severity === 'urgent' || inc.severity === 'critical' || inc.severity === 'high',
   );
-  const otherIncidents = filteredIncidents.filter(
+  const otherIncidents = visibleIncidents.filter(
     inc => !(inc.severity === 'urgent' || inc.severity === 'critical' || inc.severity === 'high'),
   );
 
@@ -165,7 +193,11 @@ export default function DashboardClient({
                 <p className="text-sm text-red-700">Requires immediate attention</p>
               </div>
             </div>
-            <button className="px-6 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition">
+            <button
+              type="button"
+              onClick={handleReviewNow}
+              className="px-6 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition"
+            >
               Review Now
             </button>
           </div>
@@ -180,7 +212,7 @@ export default function DashboardClient({
         {/* Results Count */}
         <div className="mb-4">
           <p className="text-sm text-gray-600">
-            Showing {filteredIncidents.length} incident{filteredIncidents.length !== 1 ? 's' : ''}
+            Showing {visibleIncidents.length} incident{visibleIncidents.length !== 1 ? 's' : ''}
             {selectedCategories.length < 5 && ' (filtered)'}
           </p>
         </div>
@@ -200,7 +232,15 @@ export default function DashboardClient({
 
         {/* Critical Incidents Section */}
         {criticalIncidents.length > 0 && (
-          <div className="mb-8">
+          <div
+            ref={criticalSectionRef}
+            className={
+              'mb-8 rounded-lg transition-all duration-500 scroll-mt-4 ' +
+              (flashCritical
+                ? 'ring-4 ring-red-400 ring-offset-4 ring-offset-blue-50 bg-red-50/40'
+                : '')
+            }
+          >
             <h2 className="text-2xl font-bold text-gray-900 mb-4">🚨 Critical Incidents</h2>
             {criticalIncidents.map(incident => (
               <IncidentCard

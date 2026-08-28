@@ -22,6 +22,7 @@ export interface RedisLike {
   ltrim(key: string, start: number, stop: number): Promise<'OK'>;
   lrange(key: string, start: number, stop: number): Promise<string[]>;
   lrem(key: string, count: number, value: string): Promise<number>;
+  lset(key: string, index: number, value: string): Promise<'OK'>;
   llen(key: string): Promise<number>;
   set(key: string, value: string, mode?: 'EX', ttlSeconds?: number): Promise<'OK'>;
   get(key: string): Promise<string | null>;
@@ -148,6 +149,20 @@ class InMemoryRedis implements RedisLike {
     }
     if (entry.value.length === 0) this.store.delete(key);
     return removed;
+  }
+
+  async lset(key: string, index: number, value: string): Promise<'OK'> {
+    const entry = this.getEntry(key);
+    if (!entry || entry.type !== 'list') {
+      throw new Error('ERR no such key');
+    }
+    const len = entry.value.length;
+    const idx = index < 0 ? len + index : index;
+    if (idx < 0 || idx >= len) {
+      throw new Error('ERR index out of range');
+    }
+    entry.value[idx] = value;
+    return 'OK';
   }
 
   async set(

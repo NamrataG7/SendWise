@@ -215,6 +215,7 @@ export async function computeIncidentList(
         category: v.category,
         severity: v.severity,
         action: v.action,
+        reviewed: (v as StoredViolation & { reviewed?: boolean }).reviewed === true,
         detections: [
           {
             type: v.category,
