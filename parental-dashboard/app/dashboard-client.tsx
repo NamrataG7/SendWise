@@ -203,7 +203,12 @@ export default function DashboardClient({
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">🚨 Critical Incidents</h2>
             {criticalIncidents.map(incident => (
-              <IncidentCard key={incident.id} incident={incident} />
+              <IncidentCard
+                key={incident.id}
+                incident={incident}
+                userIdHash={incident.childId}
+                onReviewed={handleReviewed}
+              />
             ))}
           </div>
         )}
@@ -213,7 +218,12 @@ export default function DashboardClient({
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Recent Activity</h2>
             {otherIncidents.map(incident => (
-              <IncidentCard key={incident.id} incident={incident} />
+              <IncidentCard
+                key={incident.id}
+                incident={incident}
+                userIdHash={incident.childId}
+                onReviewed={handleReviewed}
+              />
             ))}
           </div>
         )}
