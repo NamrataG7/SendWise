@@ -21,9 +21,18 @@ export default function DashboardClient({
   parentLabel,
   childCount,
   childHashes,
-  incidents,
+  incidents: initialIncidents,
   stats,
 }: Props) {
+  // Local state so 'Mark Reviewed' can remove a card instantly without
+  // waiting for a router.refresh() round-trip. Server list is authoritative
+  // on next load.
+  const [incidents, setIncidents] = useState<Incident[]>(initialIncidents);
+
+  const handleReviewed = (incidentId: string) => {
+    setIncidents((cur) => cur.filter((i) => i.id !== incidentId));
+  };
+
   const [selectedCategories, setSelectedCategories] = useState<IncidentCategory[]>([
     'harassment',
     'threats',

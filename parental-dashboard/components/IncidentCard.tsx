@@ -1,7 +1,12 @@
+'use client';
+
+import { useState } from 'react';
 import { Incident } from '@/lib/types';
 
 interface IncidentCardProps {
   incident: Incident;
+  userIdHash: string;
+  onReviewed?: (incidentId: string) => void;
 }
 
 const severityConfig = {
@@ -64,7 +69,28 @@ const actionLabels = {
   cancelled: 'User cancelled'
 };
 
-export default function IncidentCard({ incident }: IncidentCardProps) {
+export default function IncidentCard({ incident, userIdHash, onReviewed }: IncidentCardProps) {
+  const [busy, setBusy] = useState(false);
+
+  const handleMarkReviewed = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const res = await fetch(
+        `/api/violations/${userIdHash}/${encodeURIComponent(incident.id)}`,
+        { method: 'DELETE' },
+      );
+      if (!res.ok) {
+        console.error('Mark reviewed failed:', res.status);
+        setBusy(false);
+        return;
+      }
+      onReviewed?.(incident.id);
+    } catch (err) {
+      console.error('Mark reviewed error:', err);
+      setBusy(false);
+    }
+  };
   const config = severityConfig[incident.severity];
   const timestamp = new Date(incident.timestamp).toLocaleString('en-US', {
     month: 'short',
@@ -144,18 +170,19 @@ export default function IncidentCard({ incident }: IncidentCardProps) {
 
       {/* Action Buttons */}
       <div className="flex gap-2 mt-4">
-        <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition">
-          View Full Context
+        <button
+          type="button"
+          onClick={handleMarkReviewed}
+          disabled={busy}
+          className={
+            (incident.severity === 'urgent' || incident.severity === 'critical'
+              ? 'bg-red-600 hover:bg-red-700'
+              : 'bg-gray-600 hover:bg-gray-700') +
+            ' px-4 py-2 text-white rounded-lg text-sm font-medium transition disabled:opacity-60'
+          }
+        >
+          {busy ? 'Removing…' : 'Mark Reviewed'}
         </button>
-        {incident.severity === 'urgent' || incident.severity === 'critical' ? (
-          <button className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition">
-            Get Help Now
-          </button>
-        ) : (
-          <button className="px-4 py-2 bg-gray-600 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition">
-            Mark Reviewed
-          </button>
-        )}
       </div>
     </div>
   );

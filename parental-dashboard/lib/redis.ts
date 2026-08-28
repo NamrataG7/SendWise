@@ -21,6 +21,7 @@ export interface RedisLike {
   lpush(key: string, ...values: string[]): Promise<number>;
   ltrim(key: string, start: number, stop: number): Promise<'OK'>;
   lrange(key: string, start: number, stop: number): Promise<string[]>;
+  lrem(key: string, count: number, value: string): Promise<number>;
   llen(key: string): Promise<number>;
   set(key: string, value: string, mode?: 'EX', ttlSeconds?: number): Promise<'OK'>;
   get(key: string): Promise<string | null>;
@@ -117,6 +118,36 @@ class InMemoryRedis implements RedisLike {
     const entry = this.getEntry(key);
     if (!entry || entry.type !== 'list') return 0;
     return entry.value.length;
+  }
+
+  async lrem(key: string, count: number, value: string): Promise<number> {
+    const entry = this.getEntry(key);
+    if (!entry || entry.type !== 'list') return 0;
+    // count=0 -> remove all matching values.
+    // count>0 -> from head, at most `count` matches.
+    // count<0 -> from tail, at most |count| matches.
+    let removed = 0;
+    if (count === 0) {
+      const before = entry.value.length;
+      entry.value = entry.value.filter((v) => v !== value);
+      removed = before - entry.value.length;
+    } else if (count > 0) {
+      const out: string[] = [];
+      for (const v of entry.value) {
+        if (v === value && removed < count) { removed += 1; continue; }
+        out.push(v);
+      }
+      entry.value = out;
+    } else {
+      const limit = -count;
+      const out = entry.value.slice();
+      for (let i = out.length - 1; i >= 0 && removed < limit; i--) {
+        if (out[i] === value) { out.splice(i, 1); removed += 1; }
+      }
+      entry.value = out;
+    }
+    if (entry.value.length === 0) this.store.delete(key);
+    return removed;
   }
 
   async set(
