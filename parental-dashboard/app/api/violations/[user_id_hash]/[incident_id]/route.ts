@@ -45,20 +45,27 @@ export async function DELETE(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  // Read the list, find the JSON blob whose id matches, LREM it.
+  // The Incident.id shown in the UI is derived at read-time from the
+  // fields inside the JSON blob (see lib/insights-server.ts:210):
+  //     id = `${user_id_hash}:${session_id}:${timestamp}:${index}`
+  // We reconstruct it the same way, then LREM the matching raw entry.
   const key = `violations:${hash}`;
   const items = await redis.lrange(key, 0, -1);
   let removed = 0;
-  for (const raw of items) {
+  for (let i = 0; i < items.length; i++) {
+    const raw = items[i];
     try {
-      const obj: unknown = JSON.parse(raw);
-      if (
-        obj &&
-        typeof obj === 'object' &&
-        (obj as { id?: unknown }).id === incidentId
-      ) {
+      const v = JSON.parse(raw) as {
+        user_id_hash?: string;
+        session_id?: string;
+        timestamp?: string;
+      };
+      if (!v || !v.user_id_hash || !v.session_id || !v.timestamp) continue;
+      const derivedId = `${v.user_id_hash}:${v.session_id}:${v.timestamp}:${i}`;
+      if (derivedId === incidentId) {
         const n = await redis.lrem(key, 0, raw);
         removed += n;
+        break; // only one match by index
       }
     } catch {
       // ignore malformed entries
